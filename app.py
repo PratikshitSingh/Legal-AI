@@ -1,3 +1,9 @@
+import logging
+import os
+
+logging.getLogger("transformers").setLevel(logging.ERROR)
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+
 import streamlit as ST
 
 import utils as Utils
@@ -116,6 +122,10 @@ def create_chat(chat_id: str, session_id: str) -> None:
 
 if __name__ == "__main__":
     ST.set_page_config(page_title="Legal-AI", page_icon="⚖️")
+    
+    # Initialize tracing (LangFuse)
+    Utils.setup_langfuse_tracing()
+    
     ST.title("Legal-AI")
     ST.caption("EU AI Act RAG assistant — multi-turn conversational retrieval")
 

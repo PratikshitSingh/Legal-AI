@@ -151,6 +151,7 @@ activemq-data/
 .env
 .envrc
 .venv
+.venv_py311
 env/
 venv/
 ENV/

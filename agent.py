@@ -1,15 +1,32 @@
-from langchain_chroma import Chroma
-from langchain_classic.chains import (
-    create_history_aware_retriever,
-    create_retrieval_chain,
-)
-from langchain_classic.chains.combine_documents import create_stuff_documents_chain
-from langchain_community.chat_message_histories import ChatMessageHistory
-from langchain_core.chat_history import BaseChatMessageHistory
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from tenacity import retry, stop_after_attempt, wait_exponential
+import logging
+import os
+import sys
+from io import StringIO
+
+# Suppress transformers library output
+logging.getLogger("transformers").setLevel(logging.ERROR)
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+
+# Suppress stderr during imports
+old_stderr = sys.stderr
+sys.stderr = StringIO()
+
+try:
+    from langchain_chroma import Chroma
+    from langchain_classic.chains import (
+        create_history_aware_retriever,
+        create_retrieval_chain,
+    )
+    from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+    from langchain_community.chat_message_histories import ChatMessageHistory
+    from langchain_core.chat_history import BaseChatMessageHistory
+    from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+    from langchain_core.runnables.history import RunnableWithMessageHistory
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_community.embeddings import HuggingFaceEmbeddings
+    from tenacity import retry, stop_after_attempt, wait_exponential
+finally:
+    sys.stderr = old_stderr
 
 import utils as Utils
 
@@ -24,12 +41,10 @@ class LegalChat:
     def __init__(self, session_id: str):
         config = Utils.load_config()
         llm_cfg = config["llm"]
-        emb_cfg = Utils.get_embedding_settings()
         gemini_key = Utils.get_gemini_api_key()
 
-        embeddings = GoogleGenerativeAIEmbeddings(
-            model=emb_cfg["model"],
-            google_api_key=gemini_key,
+        embeddings = HuggingFaceEmbeddings(
+            model_name="all-mpnet-base-v2",
         )
         self.session_id = session_id
 
@@ -117,10 +132,32 @@ class LegalChat:
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
 )
-    def ask(self, question: str) -> str:
+    def ask(self, question: str, user_id: str = None) -> str:
+        """Process a question through the RAG chain with tracing support.
+        
+        Best practice: Include user_id for audit trails and cost attribution.
+        LangFuse automatically captures tokens, latency, and chain hierarchy.
+        
+        Args:
+            question: User's question
+            user_id: User identifier for tracing context
+        
+        Returns:
+            Assistant's answer (RAG-enhanced with retrieved context)
+        """
+        callbacks = Utils.get_langfuse_callback(
+            trace_name="legal-rag-query",
+            user_id=user_id,
+            session_id=self.session_id,
+            tags=["question-answering", "eu-ai-act", "retrieval-augmented"],
+        )
+        
         response = self.rag_chain.invoke(
             {"input": question},
-            config={"configurable": {"session_id": self.session_id}},
+            config={
+                "configurable": {"session_id": self.session_id},
+                "callbacks": callbacks,
+            },
         )["answer"]
         return response
 

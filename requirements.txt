@@ -5,7 +5,9 @@ langchain_core
 langchain-google-genai
 langchain_community
 chromadb>=0.4.4
-google-genai
+sentence-transformers
+torch
+torchvision
 tqdm
 requests
 pymupdf
@@ -15,3 +17,4 @@ pyyaml
 sqlalchemy>=2.0
 psycopg2-binary
 tenacity
+langfuse>=2.0.0

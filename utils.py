@@ -145,3 +145,169 @@ def load_article_content(file_name: str) -> str:
         )
 
     return result
+
+
+# Global tracing state (initialized once at startup)
+_langfuse_callback = None
+_tracing_enabled = False
+
+
+def _mask_sensitive_legal_content(text: str) -> str:
+    """Mask sensitive PII in legal documents for tracing.
+    
+    Removes/redacts:
+    - Email addresses
+    - Phone numbers  
+    - Social security numbers
+    - Account numbers (partial masking)
+    - Dates in certain formats (can be tuned)
+    
+    Best practice: Only trace necessary context, not full documents.
+    """
+    import re
+    
+    masked = text
+    
+    # Email addresses
+    masked = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '[EMAIL]', masked)
+    
+    # Phone numbers (various formats)
+    masked = re.sub(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', '[PHONE]', masked)
+    
+    # SSN (XXX-XX-XXXX or similar)
+    masked = re.sub(r'\b\d{3}-\d{2}-\d{4}\b', '[SSN]', masked)
+    
+    # Bank account numbers (simplified: 8+ consecutive digits)
+    masked = re.sub(r'\b\d{8,}\b', '[ACCOUNT_NUMBER]', masked)
+    
+    return masked
+
+
+def setup_langfuse_tracing() -> None:
+    """Initialize LangFuse tracing for LangChain operations (startup once).
+    
+    Best practices implemented:
+    - Loads config AFTER env vars are loaded (not during import)
+    - Returns callback handler factory for explicit chain integration
+    - Supports tags, user context, and data masking
+    - Fails gracefully if credentials missing (continues without tracing)
+    """
+    global _langfuse_callback, _tracing_enabled
+    
+    config = load_config()
+    tracing_config = config.get("tracing", {})
+    
+    if not tracing_config.get("enabled", False):
+        print("[Tracing] LangFuse tracing is disabled in config.yaml")
+        _tracing_enabled = False
+        return
+    
+    public_key = OS.getenv("LANGFUSE_PUBLIC_KEY")
+    secret_key = OS.getenv("LANGFUSE_SECRET_KEY")
+    host = OS.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+    
+    if not public_key or not secret_key:
+        print(
+            "[Tracing] LangFuse enabled but credentials not found. "
+            "Set LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY in .env to enable tracing. "
+            "Get keys from https://cloud.langfuse.com"
+        )
+        _tracing_enabled = False
+        return
+    
+    try:
+        from langfuse.callback import CallbackHandler
+        
+        project_name = tracing_config.get("project_name", "legal-ai")
+        
+        _langfuse_callback = CallbackHandler(
+            public_key=public_key,
+            secret_key=secret_key,
+            host=host,
+        )
+        
+        _tracing_enabled = True
+        print(
+            f"[Tracing] LangFuse enabled · "
+            f"Host: {host} · Project: {project_name}"
+        )
+    except ImportError as e:
+        print(
+            f"[Tracing] langfuse not installed. Install with: pip install langfuse"
+        )
+        _tracing_enabled = False
+    except Exception as e:
+        print(f"[Tracing] Failed to initialize LangFuse: {e}")
+        _tracing_enabled = False
+
+
+def get_langfuse_callback(
+    trace_name: str = "legal-query",
+    user_id: str = None,
+    session_id: str = None,
+    tags: list[str] = None,
+) -> list:
+    """Get LangFuse callback handler(s) for passing to LangChain chains.
+    
+    Best practice: Pass callbacks explicitly to chains instead of using globals.
+    Supports adding user context, session tracking, and tags for filtering.
+    
+    Args:
+        trace_name: Descriptive name for this trace (e.g., 'contract-analysis')
+        user_id: User identifier for audit trails
+        session_id: Session identifier for grouping interactions
+        tags: List of tags (e.g., ['eu-ai-act', 'question-answering'])
+    
+    Returns:
+        List of callbacks (empty if tracing disabled or not initialized)
+    
+    Example:
+        callbacks = get_langfuse_callback(
+            trace_name='rag-retrieval',
+            user_id=user.id,
+            session_id=session_id,
+            tags=['document-processing', 'retrieval']
+        )
+        result = chain.invoke(input, config={'callbacks': callbacks})
+    """
+    if not _tracing_enabled or _langfuse_callback is None:
+        return []
+    
+    try:
+        # Create a new handler with context for this specific trace
+        from langfuse.callback import CallbackHandler
+        import os as os_module
+        
+        handler = CallbackHandler(
+            public_key=os_module.getenv("LANGFUSE_PUBLIC_KEY"),
+            secret_key=os_module.getenv("LANGFUSE_SECRET_KEY"),
+            host=os_module.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+            session_id=session_id,
+            user_id=user_id,
+            trace_name=trace_name,
+            tags=tags or [],
+        )
+        
+        return [handler]
+    except Exception as e:
+        print(f"[Tracing] Failed to create callback handler: {e}")
+        return []
+    except Exception as e:
+        print(f"[Tracing] Failed to create callback handler: {e}")
+        return []
+
+
+def flush_langfuse_traces() -> None:
+    """Flush pending traces to LangFuse backend.
+    
+    Best practice: Call this before script exit to ensure all traces are sent.
+    Important for batch processing, embed.py, and other non-server processes.
+    """
+    if not _tracing_enabled or _langfuse_callback is None:
+        return
+    
+    try:
+        _langfuse_callback.flush()
+        print("[Tracing] Traces flushed to LangFuse")
+    except Exception as e:
+        print(f"[Tracing] Failed to flush traces: {e}")

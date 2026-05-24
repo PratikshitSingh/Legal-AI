@@ -7,7 +7,7 @@ legal queries with session_id to the query orchestrator.
 from agent import LegalChat
 
 import db
-from auth import ensure_db
+from auth import ensure_db, get_current_user
 
 _chats: dict[str, LegalChat] = {}
 
@@ -40,11 +40,30 @@ def route_query(
     session_id: str,
     jwt: str | None = None,
 ) -> str:
+    """Route user query through RAG pipeline with tracing.
+    
+    Best practice: Include user context (from get_current_user) in tracing
+    for audit trails and user-level analytics.
+    
+    Args:
+        question: User's question
+        session_id: Session identifier for grouping interactions
+        jwt: JWT token (MVP: unused; production validates auth)
+    
+    Returns:
+        Assistant's answer with tracing recorded in LangFuse
+    """
     if not validate_jwt(jwt):
         raise PermissionError("Invalid or missing JWT")
+    
     ensure_db()
     db.log_message(session_id, "user", question)
+    
     chat = get_chat(session_id)
-    answer = chat.ask(question)
+    user_id = get_current_user() or "anonymous"
+    
+    # Pass user_id to include in tracing context
+    answer = chat.ask(question, user_id=user_id)
+    
     db.log_message(session_id, "assistant", answer)
     return answer

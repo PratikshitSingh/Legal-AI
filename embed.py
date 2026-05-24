@@ -122,11 +122,8 @@ def split_text_into_sections(text: str, min_chars_per_section: int) -> list[str]
 
 
 def _get_collection(*, force: bool = False):
-    Utils.get_gemini_api_key()
-    emb_cfg = Utils.get_embedding_settings()
-    gemini_ef = embedding_functions.GoogleGeminiEmbeddingFunction(
-        model_name=emb_cfg["model"],
-        api_key_env_var=emb_cfg["api_key_env"],
+    sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+        model_name="all-mpnet-base-v2",
     )
     if Utils.use_chroma_cloud():
         client = Utils.get_chroma_client()
@@ -142,7 +139,7 @@ def _get_collection(*, force: bool = False):
 
     return client.get_or_create_collection(
         name=Utils.COLLECTION_NAME,
-        embedding_function=gemini_ef,
+        embedding_function=sentence_transformer_ef,
     )
 
 
@@ -237,11 +234,18 @@ def run_ingest(*, force: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Download EU AI Act PDF and embed into Chroma")
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Delete existing collection and re-ingest from scratch",
-    )
-    args = parser.parse_args()
-    run_ingest(force=args.force)
+    # Initialize tracing (LangFuse) - best practice for batch processes
+    Utils.setup_langfuse_tracing()
+    
+    try:
+        parser = argparse.ArgumentParser(description="Download EU AI Act PDF and embed into Chroma")
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Delete existing collection and re-ingest from scratch",
+        )
+        args = parser.parse_args()
+        run_ingest(force=args.force)
+    finally:
+        # Best practice: flush traces before script exit (batch process)
+        Utils.flush_langfuse_traces()

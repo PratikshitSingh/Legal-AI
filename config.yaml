@@ -1,12 +1,10 @@
-# Default LLM settings (API key loaded from GEMINI_API_KEY in .env)
 llm:
-  provider: gemini
-  model: gemini-2.5-flash
   api_key_env: GEMINI_API_KEY
   base_url: https://generativelanguage.googleapis.com/v1beta
-
-embeddings:
+  model: gemini-2.5-flash
   provider: gemini
-  model: gemini-embedding-001
-  api_key_env: GEMINI_API_KEY
-  task_type: RETRIEVAL_DOCUMENT
+tracing:
+  enabled: true
+  project_name: legal-ai
+  provider: langfuse
+  sample_rate: 1.0
