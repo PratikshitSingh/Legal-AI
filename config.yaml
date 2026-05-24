@@ -3,6 +3,8 @@ llm:
   base_url: https://generativelanguage.googleapis.com/v1beta
   model: gemini-2.5-flash
   provider: gemini
+retrieval:
+  top_k: 5
 tracing:
   enabled: true
   project_name: legal-ai

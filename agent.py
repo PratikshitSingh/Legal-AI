@@ -41,6 +41,8 @@ class LegalChat:
     def __init__(self, session_id: str):
         config = Utils.load_config()
         llm_cfg = config["llm"]
+        retrieval_cfg = config.get("retrieval", {})
+        top_k = retrieval_cfg.get("top_k", 5)
         gemini_key = Utils.get_gemini_api_key()
 
         embeddings = HuggingFaceEmbeddings(
@@ -60,7 +62,7 @@ class LegalChat:
             collection_name=Utils.COLLECTION_NAME,
             embedding_function=embeddings,
         )
-        retriever = db.as_retriever()
+        retriever = db.as_retriever(search_kwargs={"k": top_k})
 
         contextualize_q_system_prompt = (
             "Given a chat history and the latest user question "
