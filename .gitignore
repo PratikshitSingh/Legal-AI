@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Legal-AI runtime data
+chroma_storage/
+data/*.pdf

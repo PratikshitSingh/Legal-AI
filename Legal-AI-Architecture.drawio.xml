@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net">
+  <diagram name="Page-1" id="QPmKOBCPkEFuP0lzb2uJ">
+    <mxGraphModel dx="1413" dy="760" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1160" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="fs7Xici0_9Job3JQ207P-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#003366;arcSize=8;align=center;verticalAlign=middle;" value="&lt;b&gt;Web / Mobile Client&lt;/b&gt;&lt;br/&gt;&lt;font style=&#39;font-size:10px;&#39;&gt;User interface&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="200" x="430" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;arcSize=8;align=center;" value="&lt;b&gt;API Gateway&lt;/b&gt;&lt;br/&gt;&lt;font style=&#39;font-size:10px;&#39;&gt;Routing · JWT validation&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="240" x="410" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-3" edge="1" parent="1" source="fs7Xici0_9Job3JQ207P-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;" target="fs7Xici0_9Job3JQ207P-2" value="HTTPS">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#1a3d1a;arcSize=8;align=center;" value="&lt;b&gt;Auth Service&lt;/b&gt;&lt;br/&gt;&lt;font style=&#39;font-size:10px;&#39;&gt;Sign up / Sign in · Issues JWT&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="200" x="100" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-5" edge="1" parent="1" source="fs7Xici0_9Job3JQ207P-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="fs7Xici0_9Job3JQ207P-4" value="Auth request">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-7" edge="1" parent="1" source="fs7Xici0_9Job3JQ207P-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;" value="Read / write">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="200" y="410" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#003366;arcSize=8;align=center;" value="&lt;b&gt;Query Orchestrator&lt;/b&gt;&lt;br/&gt;&lt;font style=&#39;font-size:10px;&#39;&gt;RAG + conversation controller · session_id&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="200" x="680" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-9" edge="1" parent="1" source="fs7Xici0_9Job3JQ207P-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="fs7Xici0_9Job3JQ207P-8" value="Legal query + JWT + session_id">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conv-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#003366;arcSize=8;align=center;" value="&lt;b&gt;Session store&lt;/b&gt;&lt;br/&gt;&lt;font style=&#39;font-size:10px;&#39;&gt;Chat history per session · RunnableWithMessageHistory&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="200" x="920" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="conv-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#003366;arcSize=8;align=center;" value="&lt;b&gt;History-aware retriever&lt;/b&gt;&lt;br/&gt;&lt;font style=&#39;font-size:10px;&#39;&gt;Contextualize follow-up · standalone question&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="200" x="680" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#003366;arcSize=8;align=center;" value="&lt;b&gt;Embedding Service&lt;/b&gt;&lt;br/&gt;&lt;font style=&#39;font-size:10px;&#39;&gt;Encodes query to dense vector&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="200" x="680" y="460" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-11" edge="1" parent="1" source="fs7Xici0_9Job3JQ207P-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="conv-2" value="latest user message">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conv-3" edge="1" parent="1" source="fs7Xici0_9Job3JQ207P-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="conv-1" value="read / write chat_history">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conv-4" edge="1" parent="1" source="conv-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="conv-2" value="chat_history">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1020" y="360" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="conv-5" edge="1" parent="1" source="conv-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="fs7Xici0_9Job3JQ207P-10" value="Standalone question">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conv-6" edge="1" parent="1" source="fs7Xici0_9Job3JQ207P-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="conv-1" value="append turn">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1020" y="770" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-12" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d6b656;fontColor=#5a3500;align=center;direction=south;" value="&lt;meta charset=&quot;utf-8&quot;&gt;&lt;b data-mx-given-colors=&quot;{&amp;quot;color&amp;quot;:&amp;quot;rgb(217, 185, 140)&amp;quot;}&quot; style=&quot;forced-color-adjust: none; box-shadow: none !important; font-family: Helvetica; font-size: 12px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: center; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(27, 29, 30); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; color: light-dark(rgb(217, 185, 140), rgb(99, 72, 33));&quot;&gt;Chroma DB&lt;/b&gt;&lt;br data-mx-given-colors=&quot;{&amp;quot;color&amp;quot;:&amp;quot;rgb(217, 185, 140)&amp;quot;}&quot; style=&quot;forced-color-adjust: none; box-shadow: none !important; font-family: Helvetica; font-size: 12px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: center; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(27, 29, 30); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; color: light-dark(rgb(217, 185, 140), rgb(99, 72, 33));&quot;&gt;&lt;font data-mx-given-colors=&quot;{&amp;quot;color&amp;quot;:&amp;quot;rgb(217, 185, 140)&amp;quot;}&quot; style=&quot;forced-color-adjust: none; box-shadow: none !important; font-family: Helvetica; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: center; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(27, 29, 30); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; color: light-dark(rgb(217, 185, 140), rgb(99, 72, 33)); font-size: 10px;&quot;&gt;Vector store · legal embeddings&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="200" x="680" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-13" edge="1" parent="1" source="fs7Xici0_9Job3JQ207P-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;" target="fs7Xici0_9Job3JQ207P-12" value="Vector similarity search">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-14" edge="1" parent="1" source="fs7Xici0_9Job3JQ207P-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitGroup=1;entryGroup=1;" target="fs7Xici0_9Job3JQ207P-8" value="Top-k chunks">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="620" y="625" />
+              <mxPoint x="620" y="310" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-15" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontColor=#5a3500;arcSize=8;align=center;" value="&lt;b&gt;Gemini LLM&lt;/b&gt;&lt;br/&gt;&lt;font style=&#39;font-size:10px;&#39;&gt;Generates grounded legal answer&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="200" x="680" y="740" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-16" edge="1" parent="1" source="fs7Xici0_9Job3JQ207P-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="fs7Xici0_9Job3JQ207P-15" value="Prompt + retrieved chunks + chat_history">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="940" y="310" />
+              <mxPoint x="940" y="770" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-17" edge="1" parent="1" source="fs7Xici0_9Job3JQ207P-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="fs7Xici0_9Job3JQ207P-2" value="Generated answer">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="530" y="770" />
+              <mxPoint x="530" y="215" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-18" parent="1" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;fixedRows=1;rowLines=0;fontStyle=1;align=center;resizeLast=1;fillColor=#f5f5f5;strokeColor=#666666;strokeDashArray=8 4;fontColor=#666666;swimlaneLine=0;rounded=1;arcSize=4;" value="Document Ingestion Pipeline (offline)" vertex="1">
+          <mxGeometry height="230" width="500" x="60" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-19" parent="fs7Xici0_9Job3JQ207P-18" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;arcSize=8;align=center;" value="&lt;b&gt;Legal Documents&lt;/b&gt;&lt;br/&gt;&lt;font style=&#39;font-size:10px;&#39;&gt;PDFs, contracts, statutes&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="500" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-20" parent="fs7Xici0_9Job3JQ207P-18" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;arcSize=8;align=center;" value="&lt;b&gt;Chunker&lt;/b&gt;&lt;br/&gt;&lt;font style=&#39;font-size:10px;&#39;&gt;Splits docs into overlapping segments&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="500" y="85" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-21" parent="fs7Xici0_9Job3JQ207P-18" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;arcSize=8;align=center;" value="&lt;b&gt;Ingestion Embedder&lt;/b&gt;&lt;br/&gt;&lt;font style=&#39;font-size:10px;&#39;&gt;Same model as query embedder&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="500" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-22" edge="1" parent="fs7Xici0_9Job3JQ207P-18" source="fs7Xici0_9Job3JQ207P-19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;" target="fs7Xici0_9Job3JQ207P-20" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-23" edge="1" parent="fs7Xici0_9Job3JQ207P-18" source="fs7Xici0_9Job3JQ207P-20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;" target="fs7Xici0_9Job3JQ207P-21" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-24" edge="1" parent="1" source="fs7Xici0_9Job3JQ207P-21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;fontSize=10;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="fs7Xici0_9Job3JQ207P-12" value="Store embeddings">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-25" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#82b366;fontStyle=2;" value="Auth flow" vertex="1">
+          <mxGeometry height="20" width="80" x="60" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="fs7Xici0_9Job3JQ207P-26" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#6c8ebf;fontStyle=2;" value="RAG + conversational query flow" vertex="1">
+          <mxGeometry height="20" width="200" x="640" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="JLqD2iQBK5DC8xIpUoEw-1" parent="1" style="text;whiteSpace=wrap;html=1;" value="&lt;b style=&quot;forced-color-adjust: none; box-shadow: none !important; color: rgb(172, 202, 172); font-family: Helvetica; font-size: 12px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; letter-spacing: normal; orphans: 2; text-align: center; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(27, 29, 30); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;&quot;&gt;PostgreSQL&lt;/b&gt;&lt;br style=&quot;forced-color-adjust: none; box-shadow: none !important; color: rgb(172, 202, 172); font-family: Helvetica; font-size: 12px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: center; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(27, 29, 30); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial;&quot;&gt;&lt;font style=&quot;forced-color-adjust: none; box-shadow: none !important; color: rgb(172, 202, 172); font-family: Helvetica; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: center; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; background-color: rgb(27, 29, 30); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; font-size: 10px;&quot;&gt;Users · sessions · audit log&lt;/font&gt;" vertex="1">
+          <mxGeometry height="50" width="150" x="224" y="414" as="geometry" />
+        </mxCell>
+        <mxCell id="JLqD2iQBK5DC8xIpUoEw-2" parent="1" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/databases/Azure_Database_PostgreSQL_Server.svg;" value="" vertex="1">
+          <mxGeometry height="64" width="48" x="176" y="414" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

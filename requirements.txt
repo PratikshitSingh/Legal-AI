@@ -1,0 +1,17 @@
+langchain-chroma
+langchain
+langchain-classic
+langchain_core
+langchain-google-genai
+langchain_community
+chromadb>=0.4.4
+google-genai
+tqdm
+requests
+pymupdf
+streamlit
+python-dotenv
+pyyaml
+sqlalchemy>=2.0
+psycopg2-binary
+tenacity
