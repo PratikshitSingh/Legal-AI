@@ -95,6 +95,21 @@ def load_config() -> dict:
         return yaml.safe_load(f)
 
 
+def get_app_base_url() -> str:
+    """Get the app base URL from config.yaml or environment variable.
+    
+    Priority:
+    1. APP_BASE_URL environment variable (for overrides)
+    2. config.yaml app.base_url
+    3. Fallback to localhost:8501
+    """
+    config = load_config()
+    app_url = OS.getenv("APP_BASE_URL") or config.get("app", {}).get("base_url")
+    if not app_url:
+        app_url = "http://localhost:8501"
+    return app_url.rstrip("/")  # Remove trailing slash for consistency
+
+
 def load_articles(file_name: str) -> list:
     result = []
     if OS.path.exists(file_name):

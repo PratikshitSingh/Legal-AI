@@ -8,6 +8,7 @@ import streamlit as st
 
 import db
 import jwt_utils
+import utils as Utils
 from email_service import send_magic_link_email
 
 _db_initialized = False
@@ -93,7 +94,7 @@ def request_magic_link(email: str, app_url: str = None) -> dict[str, str]:
     Args:
         email: User's email address
         app_url: Base URL for the app (e.g., https://legal-ai.streamlit.app)
-                If None, tries to detect from Streamlit
+                If None, uses get_app_base_url() from config or environment
     
     Returns:
         {"status": "success|error", "message": "<message>"}
@@ -111,10 +112,9 @@ def request_magic_link(email: str, app_url: str = None) -> dict[str, str]:
         # Store magic link in DB (hashed)
         db.create_magic_link(email, magic_token, expires_in_minutes=15)
         
-        # Determine app URL
+        # Determine app URL: use provided value or get from config
         if app_url is None:
-            # Use environment variable or default to localhost
-            app_url = os.environ.get("APP_BASE_URL", "http://localhost:8501")
+            app_url = Utils.get_app_base_url()
         
         magic_link_url = f"{app_url}?token={magic_token}"
         
