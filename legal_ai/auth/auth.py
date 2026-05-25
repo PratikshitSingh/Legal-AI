@@ -114,7 +114,7 @@ def request_magic_link(email: str, app_url: str = None) -> dict[str, str]:
         
         # Determine app URL: use provided value or get from config
         if app_url is None:
-            app_url = utils.get_app_base_url()
+            app_url = config.get_app_base_url()
         
         magic_link_url = f"{app_url}?token={magic_token}"
         
