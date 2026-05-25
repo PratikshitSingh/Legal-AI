@@ -10,12 +10,17 @@ import utils as Utils
 from auth import (
     get_or_create_session_id,
     get_current_user,
+    get_current_user_id,
+    get_current_access_token,
     is_signed_in,
     list_past_chats,
-    sign_in,
+    refresh_access_token_if_needed,
+    request_magic_link,
+    set_auth_tokens,
     sign_out,
     start_new_chat,
     switch_to_session,
+    verify_magic_link_token,
 )
 from db import get_session_messages
 from gateway import clear_chat_cache, route_query
@@ -33,18 +38,84 @@ def load_ui_messages(session_id: str) -> None:
 
 
 def render_sign_in() -> None:
-    ST.subheader("Sign in")
-    ST.caption("Your username scopes past chats — only your sessions are listed.")
-    with ST.form("sign_in_form"):
-        username = ST.text_input("Username", placeholder="e.g. alex@firm.com")
-        submitted = ST.form_submit_button("Continue")
+    """Render passwordless email sign-in form."""
+    ST.subheader("Sign in to Legal AI")
+    ST.caption("Enter your email to receive a magic link for passwordless sign-in.")
+    
+    with ST.form("magic_link_form"):
+        email = ST.text_input(
+            "Email",
+            placeholder="your.email@law-firm.com",
+            help="We'll send you a link to sign in securely"
+        )
+        submitted = ST.form_submit_button("Send Magic Link")
+    
     if submitted:
-        try:
-            sign_in(username)
-            start_new_chat()
+        if not email:
+            ST.error("Please enter an email address.")
+            return
+        
+        result = request_magic_link(email)
+        if result["status"] == "success":
+            ST.success(result["message"])
+            ST.info("Check your email for the sign-in link. It expires in 15 minutes.")
+        else:
+            ST.error(result["message"])
+
+
+def render_magic_link_verification(email: str, token: str) -> None:
+    """Render magic link verification UI."""
+    ST.info("🔐 Verifying your sign-in link...")
+    
+    with ST.spinner("Checking your magic link..."):
+        result = verify_magic_link_token(email, token)
+    
+    if result["status"] == "success":
+        # Set auth tokens in session state (including role and profile)
+        set_auth_tokens(
+            user_id=result["user_id"],
+            email=result["email"],
+            access_token=result["access_token"],
+            refresh_token=result["refresh_token"],
+            role=result.get("role", "viewer"),
+            full_name=result.get("full_name"),
+            firm=result.get("firm"),
+        )
+        ST.success(f"✅ Welcome, {result['email']}!")
+        start_new_chat(result["user_id"])
+        ST.balloons()
+        # Clear the token from URL to avoid re-triggering the verification flow
+        ST.query_params.clear()
+        ST.rerun()
+    else:
+        error_msg = result.get('message', 'Invalid or expired link. Please request a new one.')
+        ST.error(f"❌ {error_msg}")
+        ST.divider()
+        if ST.button("← Back to Sign In"):
             ST.rerun()
-        except ValueError as e:
-            ST.error(str(e))
+
+
+def render_magic_link_email_prompt(token: str) -> None:
+    """Prompt user to enter email for magic link verification."""
+    ST.subheader("✉️ Complete your sign-in")
+    ST.write("Enter your email address to verify the magic link.")
+    
+    col1, col2 = ST.columns([3, 1])
+    with col1:
+        email = ST.text_input(
+            "Email",
+            placeholder="your.email@law-firm.com",
+            key="magic_link_email_input"
+        )
+    with col2:
+        clicked = ST.button("Verify", use_container_width=True, key="verify_btn")
+    
+    if clicked:
+        if not email:
+            ST.error("❌ Please enter your email address.")
+            ST.stop()
+        else:
+            render_magic_link_verification(email.strip().lower(), token)
 
 
 def render_sidebar(session_id: str) -> None:
@@ -52,6 +123,23 @@ def render_sidebar(session_id: str) -> None:
     with ST.sidebar:
         ST.subheader("Account")
         ST.text(f"Signed in as {user}")
+        
+        # Display user role if available
+        import auth as auth_module
+        user_role = auth_module.get_current_user_role()
+        role_emoji = {"admin": "👑", "editor": "✏️", "viewer": "👁️"}.get(user_role, "👤")
+        ST.caption(f"{role_emoji} Role: {user_role}")
+        
+        col1, col2 = ST.columns(2)
+        with col1:
+            if ST.button("👤 Profile", use_container_width=True):
+                ST.switch_page("pages/profile.py")
+        
+        with col2:
+            if auth_module.is_admin():
+                if ST.button("👑 Admin", use_container_width=True):
+                    ST.switch_page("pages/admin.py")
+        
         if ST.button("Sign out", use_container_width=True):
             clear_chat_cache()
             sign_out()
@@ -86,6 +174,7 @@ def render_sidebar(session_id: str) -> None:
                     load_ui_messages(sid)
                     ST.rerun()
 
+        import utils as Utils
         chroma_mode = "Chroma Cloud" if Utils.use_chroma_cloud() else "local"
         ST.divider()
         ST.caption(f"Session: {session_id[:8]}… · Vector store: {chroma_mode}")
@@ -107,10 +196,13 @@ def create_chat(chat_id: str, session_id: str) -> None:
     ):
         chat.chat_message("user").write(prompt)
         with ST.spinner("Wait for it..."):
+            # Get current access token
+            access_token = get_current_access_token()
+            
             assistant_response = route_query(
                 question=prompt,
                 session_id=session_id,
-                jwt=None,
+                jwt=access_token,
             )
             chat.chat_message("assistant").write(assistant_response)
 
@@ -129,9 +221,31 @@ if __name__ == "__main__":
     ST.title("Legal-AI")
     ST.caption("EU AI Act RAG assistant — multi-turn conversational retrieval")
 
+    # ========================================================================
+    # Handle magic link verification from URL query params
+    # ========================================================================
+    token = ST.query_params.get("token")
+    
+    if token:
+        # User clicked magic link - show email verification form
+        ST.divider()
+        render_magic_link_email_prompt(token)
+        ST.stop()
+
+    # ========================================================================
+    # Check if user is signed in
+    # ========================================================================
     if not is_signed_in():
         render_sign_in()
         ST.stop()
+
+    # ========================================================================
+    # Refresh access token if needed
+    # ========================================================================
+    if not refresh_access_token_if_needed():
+        ST.warning("Your session has expired. Please sign in again.")
+        sign_out()
+        ST.rerun()
 
     if not Utils.chroma_collection_has_documents():
         ST.error(
@@ -150,3 +264,4 @@ if __name__ == "__main__":
 
     render_sidebar(session_id)
     create_chat(CHAT_UI_KEY, session_id)
+

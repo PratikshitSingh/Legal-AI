@@ -3,10 +3,29 @@ llm:
   base_url: https://generativelanguage.googleapis.com/v1beta
   model: gemini-2.5-flash
   provider: gemini
+
 retrieval:
   top_k: 5
+
 tracing:
   enabled: true
   project_name: legal-ai
   provider: langfuse
   sample_rate: 1.0
+
+jwt:
+  access_token_expires_seconds: 900  # 15 minutes
+  refresh_token_expires_days: 7
+  secret_env: JWT_SECRET  # Load JWT_SECRET from environment
+
+email:
+  provider: sendgrid
+  provider_key_env: SENDGRID_API_KEY
+  from_address_env: EMAIL_FROM
+  default_from: noreply@legal-ai.app
+  magic_link_expires_minutes: 15
+
+# For Streamlit deployment
+app:
+  base_url: http://localhost:8501  # Override for production deployment
+

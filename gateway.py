@@ -7,14 +7,37 @@ legal queries with session_id to the query orchestrator.
 from agent import LegalChat
 
 import db
-from auth import ensure_db, get_current_user
+import jwt_utils
+from auth import ensure_db, get_current_user, get_current_user_id
 
 _chats: dict[str, LegalChat] = {}
 
 
-def validate_jwt(token: str | None) -> bool:
-    # MVP: accept all requests; production validates JWT from Auth Service
-    return True
+def validate_jwt(token: str | None) -> tuple[str | None, bool]:
+    """
+    Validate JWT access token.
+    
+    Args:
+        token: JWT token string or None
+    
+    Returns:
+        (user_id, is_valid) tuple
+        - user_id: UUID of user if valid, None otherwise
+        - is_valid: True if token is valid, False otherwise
+    
+    Example:
+        user_id, is_valid = validate_jwt(token)
+        if not is_valid:
+            raise PermissionError("Invalid token")
+    """
+    if not token:
+        return None, False
+
+    try:
+        user_id = jwt_utils.validate_access_token(token)
+        return user_id, True
+    except jwt_utils.jwt.InvalidTokenError:
+        return None, False
 
 
 def get_chat(session_id: str, *, hydrate: bool = True) -> LegalChat:
@@ -42,28 +65,37 @@ def route_query(
 ) -> str:
     """Route user query through RAG pipeline with tracing.
     
-    Best practice: Include user context (from get_current_user) in tracing
+    Best practice: Include user context (from JWT token) in tracing
     for audit trails and user-level analytics.
     
     Args:
         question: User's question
         session_id: Session identifier for grouping interactions
-        jwt: JWT token (MVP: unused; production validates auth)
+        jwt: JWT access token (validates user owns this session)
     
     Returns:
         Assistant's answer with tracing recorded in LangFuse
+    
+    Raises:
+        PermissionError: If JWT is invalid
     """
-    if not validate_jwt(jwt):
-        raise PermissionError("Invalid or missing JWT")
+    # Validate JWT token
+    user_id, is_valid = validate_jwt(jwt)
+    if not is_valid:
+        raise PermissionError("Invalid or missing JWT token")
+    
+    # Verify user owns the session
+    session_user_id = db.get_session_user_id(session_id)
+    if session_user_id and session_user_id != user_id:
+        raise PermissionError("User does not own this session")
     
     ensure_db()
     db.log_message(session_id, "user", question)
     
     chat = get_chat(session_id)
-    user_id = get_current_user() or "anonymous"
     
     # Pass user_id to include in tracing context
-    answer = chat.ask(question, user_id=user_id)
+    answer = chat.ask(question, user_id=user_id or "anonymous")
     
     db.log_message(session_id, "assistant", answer)
     return answer
