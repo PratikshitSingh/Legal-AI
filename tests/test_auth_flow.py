@@ -17,9 +17,9 @@ from datetime import datetime, timezone
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import db
-import jwt_utils
-from email_service import send_magic_link_email, get_email_provider
+from legal_ai.db import db
+from legal_ai.auth import jwt_utils
+from legal_ai.services.email_service import send_magic_link_email, get_email_provider
 
 
 def test_db_init():
@@ -299,7 +299,7 @@ def test_email_service():
     """Test email service configuration."""
     print("\n✓ Testing email service...")
     try:
-        from email_service import get_email_provider
+        from legal_ai.services.email_service import get_email_provider
         
         # For testing, use local provider
         os.environ["EMAIL_PROVIDER"] = "local"

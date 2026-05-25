@@ -2,9 +2,9 @@
 
 import streamlit as st
 
-import auth
-import db
-import rbac
+from legal_ai.auth import auth
+from legal_ai.db import db
+from legal_ai.auth import rbac
 
 # Configure page
 st.set_page_config(page_title="Profile", page_icon="👤", layout="wide")

@@ -5,7 +5,8 @@ from typing import Callable
 
 import streamlit as st
 
-import auth
+from . import auth
+from legal_ai.db import db
 
 
 # ============================================================================
@@ -306,7 +307,3 @@ def assign_role(user_id: str, new_role: str) -> dict:
             return {"status": "error", "message": "User not found or update failed"}
     except Exception as e:
         return {"status": "error", "message": f"Error: {str(e)}"}
-
-
-# Import db module at end to avoid circular imports
-import db

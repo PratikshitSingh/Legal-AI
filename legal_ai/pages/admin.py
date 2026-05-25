@@ -2,9 +2,9 @@
 
 import streamlit as st
 
-import auth
-import db
-import rbac
+from legal_ai.auth import auth
+from legal_ai.db import db
+from legal_ai.auth import rbac
 
 # Configure page
 st.set_page_config(page_title="Admin Dashboard", page_icon="👑", layout="wide")
@@ -198,21 +198,3 @@ with tab3:
             
             # Profile completion
             st.write("**Profile Completion:**")
-            
-            with_full_name = len([u for u in all_users if u.get('full_name')])
-            with_firm = len([u for u in all_users if u.get('firm')])
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                completion_pct = (with_full_name / len(all_users) * 100) if all_users else 0
-                st.write(f"Full Names: {with_full_name}/{len(all_users)} ({completion_pct:.0f}%)")
-            
-            with col2:
-                completion_pct = (with_firm / len(all_users) * 100) if all_users else 0
-                st.write(f"Firm/Org: {with_firm}/{len(all_users)} ({completion_pct:.0f}%)")
-        else:
-            st.info("No users in the system yet.")
-    
-    except Exception as e:
-        st.error(f"❌ Error loading analytics: {str(e)}")

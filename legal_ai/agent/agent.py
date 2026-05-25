@@ -28,7 +28,7 @@ try:
 finally:
     sys.stderr = old_stderr
 
-import utils as Utils
+from legal_ai.core import config, utils, constants
 
 
 class LegalChat:
@@ -39,11 +39,11 @@ class LegalChat:
     rag_chain = None
 
     def __init__(self, session_id: str):
-        config = Utils.load_config()
-        llm_cfg = config["llm"]
-        retrieval_cfg = config.get("retrieval", {})
+        cfg = config.load_config()
+        llm_cfg = cfg["llm"]
+        retrieval_cfg = cfg.get("retrieval", {})
         top_k = retrieval_cfg.get("top_k", 5)
-        gemini_key = Utils.get_gemini_api_key()
+        gemini_key = utils.get_gemini_api_key()
 
         embeddings = HuggingFaceEmbeddings(
             model_name="all-mpnet-base-v2",
@@ -55,11 +55,11 @@ class LegalChat:
             api_key=gemini_key,
         )
 
-        client = Utils.get_chroma_client()
+        client = utils.get_chroma_client()
 
         db = Chroma(
             client=client,
-            collection_name=Utils.COLLECTION_NAME,
+            collection_name=utils.COLLECTION_NAME,
             embedding_function=embeddings,
         )
         retriever = db.as_retriever(search_kwargs={"k": top_k})
@@ -147,7 +147,7 @@ class LegalChat:
         Returns:
             Assistant's answer (RAG-enhanced with retrieved context)
         """
-        callbacks = Utils.get_langfuse_callback(
+        callbacks = utils.get_langfuse_callback(
             trace_name="legal-rag-query",
             user_id=user_id,
             session_id=self.session_id,

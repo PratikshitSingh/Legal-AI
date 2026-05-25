@@ -1,3 +1,5 @@
+"""Legal-AI Streamlit Application - Main Entry Point."""
+
 import logging
 import os
 
@@ -6,8 +8,8 @@ os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 
 import streamlit as ST
 
-import utils as Utils
-from auth import (
+from legal_ai.core import config, utils
+from legal_ai.auth.auth import (
     get_or_create_session_id,
     get_current_user,
     get_current_user_id,
@@ -22,8 +24,8 @@ from auth import (
     switch_to_session,
     verify_magic_link_token,
 )
-from db import get_session_messages
-from gateway import clear_chat_cache, route_query
+from legal_ai.db.db import get_session_messages
+from legal_ai.services.gateway import clear_chat_cache, route_query
 
 
 CHAT_UI_KEY = "chat1"
@@ -125,7 +127,7 @@ def render_sidebar(session_id: str) -> None:
         ST.text(f"Signed in as {user}")
         
         # Display user role if available
-        import auth as auth_module
+        from legal_ai.auth import auth as auth_module
         user_role = auth_module.get_current_user_role()
         role_emoji = {"admin": "👑", "editor": "✏️", "viewer": "👁️"}.get(user_role, "👤")
         ST.caption(f"{role_emoji} Role: {user_role}")
@@ -174,8 +176,7 @@ def render_sidebar(session_id: str) -> None:
                     load_ui_messages(sid)
                     ST.rerun()
 
-        import utils as Utils
-        chroma_mode = "Chroma Cloud" if Utils.use_chroma_cloud() else "local"
+        chroma_mode = "Chroma Cloud" if utils.use_chroma_cloud() else "local"
         ST.divider()
         ST.caption(f"Session: {session_id[:8]}… · Vector store: {chroma_mode}")
 
@@ -216,7 +217,7 @@ if __name__ == "__main__":
     ST.set_page_config(page_title="Legal-AI", page_icon="⚖️")
     
     # Initialize tracing (LangFuse)
-    Utils.setup_langfuse_tracing()
+    utils.setup_langfuse_tracing()
     
     ST.title("Legal-AI")
     ST.caption("EU AI Act RAG assistant — multi-turn conversational retrieval")
@@ -247,10 +248,10 @@ if __name__ == "__main__":
         sign_out()
         ST.rerun()
 
-    if not Utils.chroma_collection_has_documents():
+    if not utils.chroma_collection_has_documents():
         ST.error(
             "Vector store is empty. Run offline ingest first:\n\n"
-            "```bash\npython embed.py\n```\n\n"
+            "```bash\npython scripts/ingest.py\n```\n\n"
             "Requires `GEMINI_API_KEY` and Chroma credentials in `.env`."
         )
         ST.stop()
@@ -264,4 +265,3 @@ if __name__ == "__main__":
 
     render_sidebar(session_id)
     create_chat(CHAT_UI_KEY, session_id)
-

@@ -4,11 +4,11 @@ Production (per architecture diagram): HTTPS routing, JWT validation, forwards
 legal queries with session_id to the query orchestrator.
 """
 
-from agent import LegalChat
+from legal_ai.agent.agent import LegalChat
 
-import db
-import jwt_utils
-from auth import ensure_db, get_current_user, get_current_user_id
+from legal_ai.db import db
+from legal_ai.auth import jwt_utils
+from legal_ai.auth.auth import ensure_db, get_current_user, get_current_user_id
 
 _chats: dict[str, LegalChat] = {}
 

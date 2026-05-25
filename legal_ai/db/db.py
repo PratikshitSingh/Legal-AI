@@ -499,7 +499,7 @@ def validate_magic_link(email: str, token: str) -> bool:
 
         if not result:
             return False
-
+        
         # Mark as used
         conn.execute(
             text(
@@ -511,17 +511,20 @@ def validate_magic_link(email: str, token: str) -> bool:
             ),
             {"email": email, "token_hash": token_hash},
         )
+        
         return True
 
 
 # ============================================================================
-# Refresh Tokens
+# Refresh Tokens (in DB)
 # ============================================================================
 
 
-def create_refresh_token(user_id: str, token: str, expires_in_days: int = 7) -> None:
-    """Store refresh token (hashed) in database."""
-    expires_at = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
+def create_refresh_token(user_id: str, token: str) -> None:
+    """Store refresh token (hashed) in DB for this user."""
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        days=int(os.environ.get("JWT_REFRESH_EXPIRY_DAYS", 7))
+    )
     engine = get_engine()
     with engine.begin() as conn:
         conn.execute(
@@ -540,7 +543,7 @@ def create_refresh_token(user_id: str, token: str, expires_in_days: int = 7) -> 
 
 
 def validate_refresh_token(user_id: str, token: str) -> bool:
-    """Check if refresh token is valid and not revoked."""
+    """Validate refresh token for a user."""
     token_hash = _hash_token(token)
     engine = get_engine()
     with engine.connect() as conn:
@@ -556,11 +559,12 @@ def validate_refresh_token(user_id: str, token: str) -> bool:
             ),
             {"user_id": user_id, "token_hash": token_hash},
         ).scalar()
+    
     return bool(result)
 
 
 def revoke_refresh_tokens(user_id: str) -> None:
-    """Revoke all active refresh tokens for a user (on sign-out)."""
+    """Revoke all refresh tokens for a user (on sign-out)."""
     engine = get_engine()
     with engine.begin() as conn:
         conn.execute(
@@ -568,8 +572,7 @@ def revoke_refresh_tokens(user_id: str) -> None:
                 """
                 UPDATE refresh_tokens
                 SET revoked_at = NOW()
-                WHERE user_id = CAST(:user_id AS UUID)
-                  AND revoked_at IS NULL
+                WHERE user_id = CAST(:user_id AS UUID) AND revoked_at IS NULL
                 """
             ),
             {"user_id": user_id},
@@ -577,110 +580,52 @@ def revoke_refresh_tokens(user_id: str) -> None:
 
 
 # ============================================================================
-# Sessions (updated for user_id)
+# Sessions (Chat Sessions)
 # ============================================================================
 
 
-def upsert_session(session_id: str, display_user: str = "demo-user", user_id: str | None = None) -> None:
-    """Create or update session. Can use display_user (legacy) or user_id (new)."""
-    now = datetime.now(timezone.utc)
+def upsert_session(session_id: str, user_id: str | None = None, display_user: str = "demo-user") -> None:
+    """Create or update a chat session."""
     engine = get_engine()
     with engine.begin() as conn:
         conn.execute(
             text(
                 """
                 INSERT INTO sessions (session_id, user_id, display_user, created_at, last_seen_at)
-                VALUES (CAST(:session_id AS UUID), CAST(:user_id AS UUID), :display_user, :now, :now)
-                ON CONFLICT (session_id) DO UPDATE SET
-                    user_id = COALESCE(EXCLUDED.user_id, sessions.user_id),
+                VALUES (CAST(:session_id AS UUID), CAST(:user_id AS UUID), :display_user, NOW(), NOW())
+                ON CONFLICT (session_id) DO UPDATE
+                SET user_id = CAST(EXCLUDED.user_id AS UUID),
                     display_user = EXCLUDED.display_user,
-                    last_seen_at = EXCLUDED.last_seen_at
+                    last_seen_at = NOW()
                 """
             ),
             {
                 "session_id": session_id,
                 "user_id": user_id,
                 "display_user": display_user,
-                "now": now,
             },
         )
 
 
-def log_message(session_id: str, role: str, content: str) -> None:
-    with get_engine().begin() as conn:
-        conn.execute(
-            text(
-                """
-                INSERT INTO audit_log (session_id, role, content)
-                VALUES (CAST(:session_id AS UUID), :role, :content)
-                """
-            ),
-            {"session_id": session_id, "role": role, "content": content},
-        )
-
-
-def get_user_sessions(user_id_or_display_user: str, limit: int = 30) -> list[dict]:
-    """Fetch past chat sessions for a user (by user_id UUID or display_user name)."""
+def get_user_sessions(user_id: str, limit: int = 50) -> list[dict]:
+    """Get all chat sessions for a user."""
     engine = get_engine()
     with engine.connect() as conn:
-        # Try user_id first (UUID), fallback to display_user (text)
         rows = conn.execute(
             text(
                 """
-                SELECT s.session_id::text, s.created_at, s.last_seen_at,
-                       (
-                           SELECT a.content
-                           FROM audit_log a
-                           WHERE a.session_id = s.session_id
-                           ORDER BY a.created_at DESC
-                           LIMIT 1
-                       ) AS last_message
-                FROM sessions s
-                WHERE (
-                    s.user_id = CAST(:user_id AS UUID)
-                    OR s.display_user = :display_user
-                )
-                ORDER BY s.last_seen_at DESC
+                SELECT 
+                    session_id::text,
+                    user_id::text,
+                    display_user,
+                    created_at,
+                    last_seen_at
+                FROM sessions
+                WHERE user_id = CAST(:user_id AS UUID)
+                ORDER BY last_seen_at DESC
                 LIMIT :limit
                 """
             ),
-            {
-                "user_id": user_id_or_display_user,
-                "display_user": user_id_or_display_user,
-                "limit": limit,
-            },
+            {"user_id": user_id, "limit": limit},
         ).mappings().all()
-    return [dict(r) for r in rows]
-
-
-def get_session_messages(session_id: str) -> list[dict]:
-    """Ordered conversation turns for a session."""
-    with get_engine().connect() as conn:
-        rows = conn.execute(
-            text(
-                """
-                SELECT role, content, created_at
-                FROM audit_log
-                WHERE session_id = CAST(:session_id AS UUID)
-                ORDER BY created_at ASC
-                """
-            ),
-            {"session_id": session_id},
-        ).mappings().all()
-    return [dict(r) for r in rows]
-
-
-def get_session_user_id(session_id: str) -> str | None:
-    """Fetch the user_id associated with a session."""
-    engine = get_engine()
-    with engine.connect() as conn:
-        user_id = conn.execute(
-            text(
-                """
-                SELECT user_id::text FROM sessions
-                WHERE session_id = CAST(:session_id AS UUID)
-                """
-            ),
-            {"session_id": session_id},
-        ).scalar()
-    return user_id
+    return [dict(row) for row in rows]

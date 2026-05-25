@@ -10,7 +10,7 @@ import requests
 from chromadb.utils import embedding_functions
 from tqdm import tqdm
 
-import utils as Utils
+from legal_ai.core import utils, constants
 
 # Gemini free tier: ~100 embed requests/min; each doc in a batch counts as one request
 EMBED_BATCH_SIZE = 50
@@ -43,7 +43,7 @@ def _pdf_bytes_to_text(pdf_data: bytes) -> str:
 
 
 def _cache_pdf(pdf_data: bytes) -> None:
-    cache_path = Path(Utils.EUROPEAN_ACT_CACHE_PATH)
+    cache_path = Path(constants.EUROPEAN_ACT_CACHE_PATH)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache_path.write_bytes(pdf_data)
 
@@ -62,13 +62,13 @@ def _download_pdf(url: str) -> bytes:
 
 def fetch_pdf_bytes(urls: list[str] | None = None) -> bytes:
     """Download EU AI Act PDF, using cache and fallback URLs."""
-    cache_path = Path(Utils.EUROPEAN_ACT_CACHE_PATH)
+    cache_path = Path(constants.EUROPEAN_ACT_CACHE_PATH)
     if cache_path.is_file():
         cached = cache_path.read_bytes()
         if _is_pdf(cached):
             return cached
 
-    candidates = urls or [Utils.EUROPEAN_ACT_URL, *Utils.EUROPEAN_ACT_FALLBACK_URLS]
+    candidates = urls or [constants.EUROPEAN_ACT_URL, *constants.EUROPEAN_ACT_FALLBACK_URLS]
     errors: list[str] = []
     for url in candidates:
         try:
@@ -125,20 +125,20 @@ def _get_collection(*, force: bool = False):
     sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
         model_name="all-mpnet-base-v2",
     )
-    if Utils.use_chroma_cloud():
-        client = Utils.get_chroma_client()
+    if utils.use_chroma_cloud():
+        client = utils.get_chroma_client()
     else:
-        client = chromadb.PersistentClient(path=Utils.DB_FOLDER)
+        client = chromadb.PersistentClient(path=utils.DB_FOLDER)
 
     if force:
         try:
-            client.delete_collection(Utils.COLLECTION_NAME)
-            print(f"Deleted collection {Utils.COLLECTION_NAME}")
+            client.delete_collection(utils.COLLECTION_NAME)
+            print(f"Deleted collection {utils.COLLECTION_NAME}")
         except Exception:
             pass
 
     return client.get_or_create_collection(
-        name=Utils.COLLECTION_NAME,
+        name=utils.COLLECTION_NAME,
         embedding_function=sentence_transformer_ef,
     )
 
@@ -147,7 +147,7 @@ def embed_text_in_chromadb(
     text: str,
     document_name: str,
     document_description: str,
-    persist_directory: str = Utils.DB_FOLDER,
+    persist_directory: str = utils.DB_FOLDER,
     *,
     force: bool = False,
 ) -> None:
@@ -165,7 +165,7 @@ def embed_text_in_chromadb(
     }
     metadatas = [metadata] * len(documents)
 
-    _ = persist_directory  # local path used via Utils.DB_FOLDER in _get_collection
+    _ = persist_directory  # local path used via utils.DB_FOLDER in _get_collection
     collection = _get_collection(force=force)
 
     count = collection.count()
@@ -204,7 +204,7 @@ DOCUMENT_DESCRIPTION = "Artificial Intelligence Act"
 
 
 def ingest_complete() -> bool:
-    if not Utils.chroma_collection_has_documents():
+    if not utils.chroma_collection_has_documents():
         return False
     collection = _get_collection()
     return collection.count() >= INGEST_MIN_CHUNKS
@@ -217,7 +217,7 @@ def run_ingest(*, force: bool = False) -> None:
 
     print("Fetching EU AI Act PDF…")
     pdf_data = fetch_pdf_bytes()
-    print(f"PDF ready ({len(pdf_data)} bytes at {Utils.EUROPEAN_ACT_CACHE_PATH})")
+    print(f"PDF ready ({len(pdf_data)} bytes at {constants.EUROPEAN_ACT_CACHE_PATH})")
 
     print("Extracting text…")
     text = _pdf_bytes_to_text(pdf_data)
@@ -235,7 +235,7 @@ def run_ingest(*, force: bool = False) -> None:
 
 if __name__ == "__main__":
     # Initialize tracing (LangFuse) - best practice for batch processes
-    Utils.setup_langfuse_tracing()
+    utils.setup_langfuse_tracing()
     
     try:
         parser = argparse.ArgumentParser(description="Download EU AI Act PDF and embed into Chroma")
@@ -248,4 +248,4 @@ if __name__ == "__main__":
         run_ingest(force=args.force)
     finally:
         # Best practice: flush traces before script exit (batch process)
-        Utils.flush_langfuse_traces()
+        utils.flush_langfuse_traces()

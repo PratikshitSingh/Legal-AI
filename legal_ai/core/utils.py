@@ -1,30 +1,24 @@
+"""Core utilities for article management, embeddings, and tracing."""
+
 import json as JS
 import os as OS
 from pathlib import Path
 
-import yaml
 from dotenv import load_dotenv
+
+from .config import load_config
+from .constants import (
+    ARTICLES_FILE,
+    ARTICLES_FOLDER,
+    COLLECTION_NAME,
+    DB_FOLDER,
+)
 
 load_dotenv()
 
-ROOT = Path(__file__).resolve().parent
-ARTICLES_FILE = "articles.json"
-ARTICLES_FOLDER = "articles"
-DB_FOLDER = str(ROOT / "chroma_storage")
-DATA_FOLDER = str(ROOT / "data")
-# europarl doceo links often return 202 + empty body for scripted clients
-EUROPEAN_ACT_URL = (
-    "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32024R1689"
-)
-EUROPEAN_ACT_FALLBACK_URLS = [
-    "https://artificialintelligenceact.eu/wp-content/uploads/2024/04/TA-9-2024-0138_EN.pdf",
-    "https://data.consilium.europa.eu/doc/document/PE-24-2024-REV-1/en/pdf",
-]
-EUROPEAN_ACT_CACHE_PATH = str(Path(DATA_FOLDER) / "eu_ai_act.pdf")
-COLLECTION_NAME = "collection_1"
-
 
 def use_chroma_cloud() -> bool:
+    """Check if Chroma Cloud is configured."""
     return bool(
         OS.getenv("CHROMA_API_KEY")
         and OS.getenv("CHROMA_TENANT")
@@ -33,6 +27,7 @@ def use_chroma_cloud() -> bool:
 
 
 def get_chroma_cloud_settings() -> dict[str, str]:
+    """Get Chroma Cloud settings from environment."""
     api_key = OS.getenv("CHROMA_API_KEY")
     tenant = OS.getenv("CHROMA_TENANT")
     database = OS.getenv("CHROMA_DATABASE")
@@ -58,6 +53,7 @@ def get_chroma_client():
 
 
 def chroma_collection_has_documents() -> bool:
+    """Check if Chroma collection has documents."""
     client = get_chroma_client()
     try:
         collection = client.get_collection(name=COLLECTION_NAME)
@@ -67,6 +63,7 @@ def chroma_collection_has_documents() -> bool:
 
 
 def get_gemini_api_key() -> str:
+    """Get Gemini API key from environment."""
     config = load_config()
     env_name = config.get("embeddings", {}).get("api_key_env", "GEMINI_API_KEY")
     key = OS.getenv(env_name) or OS.getenv("GEMINI_API_KEY")
@@ -81,6 +78,7 @@ def get_gemini_api_key() -> str:
 
 
 def get_embedding_settings() -> dict:
+    """Get embedding configuration."""
     config = load_config()
     emb = config.get("embeddings", {})
     return {
@@ -90,27 +88,8 @@ def get_embedding_settings() -> dict:
     }
 
 
-def load_config() -> dict:
-    with open(ROOT / "config.yaml", encoding="utf-8") as f:
-        return yaml.safe_load(f)
-
-
-def get_app_base_url() -> str:
-    """Get the app base URL from config.yaml or environment variable.
-    
-    Priority:
-    1. APP_BASE_URL environment variable (for overrides)
-    2. config.yaml app.base_url
-    3. Fallback to localhost:8501
-    """
-    config = load_config()
-    app_url = OS.getenv("APP_BASE_URL") or config.get("app", {}).get("base_url")
-    if not app_url:
-        app_url = "http://localhost:8501"
-    return app_url.rstrip("/")  # Remove trailing slash for consistency
-
-
 def load_articles(file_name: str) -> list:
+    """Load articles from JSON file."""
     result = []
     if OS.path.exists(file_name):
         with open(file_name, encoding="utf-8") as file:
@@ -129,6 +108,7 @@ def load_articles(file_name: str) -> list:
 
 
 def save_articles(file_name: str, data) -> None:
+    """Save articles to JSON file."""
     try:
         with open(file_name, "w", encoding="utf-8") as file:
             JS.dump(data, file, indent=4)
@@ -138,6 +118,7 @@ def save_articles(file_name: str, data) -> None:
 
 
 def save_article_content(file_name: str, content: str) -> None:
+    """Save article content to file."""
     try:
         with open(file_name, "w", encoding="utf-8") as file:
             file.write(content)
@@ -150,6 +131,7 @@ def save_article_content(file_name: str, content: str) -> None:
 
 
 def load_article_content(file_name: str) -> str:
+    """Load article content from file."""
     result = ""
     try:
         with open(file_name, encoding="utf-8") as file:
@@ -161,6 +143,10 @@ def load_article_content(file_name: str) -> str:
 
     return result
 
+
+# ============================================================================
+# Tracing Utilities
+# ============================================================================
 
 # Global tracing state (initialized once at startup)
 _langfuse_callback = None
@@ -304,9 +290,6 @@ def get_langfuse_callback(
         )
         
         return [handler]
-    except Exception as e:
-        print(f"[Tracing] Failed to create callback handler: {e}")
-        return []
     except Exception as e:
         print(f"[Tracing] Failed to create callback handler: {e}")
         return []

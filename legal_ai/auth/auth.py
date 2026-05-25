@@ -6,10 +6,10 @@ import uuid
 
 import streamlit as st
 
-import db
-import jwt_utils
-import utils as Utils
-from email_service import send_magic_link_email
+from legal_ai.db import db
+from legal_ai.services.email_service import send_magic_link_email
+from legal_ai.core import config, utils
+from . import jwt_utils
 
 _db_initialized = False
 
@@ -114,7 +114,7 @@ def request_magic_link(email: str, app_url: str = None) -> dict[str, str]:
         
         # Determine app URL: use provided value or get from config
         if app_url is None:
-            app_url = Utils.get_app_base_url()
+            app_url = utils.get_app_base_url()
         
         magic_link_url = f"{app_url}?token={magic_token}"
         
@@ -409,4 +409,3 @@ def check_permission(user_id: str, required_role: str) -> bool:
     user_level = role_hierarchy.get(user.get("role", "viewer"), -1)
     required_level = role_hierarchy.get(required_role, -1)
     return user_level >= required_level
-
