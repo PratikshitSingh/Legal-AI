@@ -27,5 +27,5 @@ email:
 
 # For Streamlit deployment
 app:
-  base_url: http://localhost:8501  # Override for production deployment
+  base_url: https://legal-ai-anjhwkwci9gqrofvqkueks.streamlit.app/
 
