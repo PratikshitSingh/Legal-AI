@@ -520,11 +520,18 @@ def validate_magic_link(email: str, token: str) -> bool:
 # ============================================================================
 
 
-def create_refresh_token(user_id: str, token: str) -> None:
-    """Store refresh token (hashed) in DB for this user."""
-    expires_at = datetime.now(timezone.utc) + timedelta(
-        days=int(os.environ.get("JWT_REFRESH_EXPIRY_DAYS", 7))
-    )
+def create_refresh_token(user_id: str, token: str, expires_in_days: int | None = None) -> None:
+    """Store refresh token (hashed) in DB for this user.
+    
+    Args:
+        user_id: User ID (UUID)
+        token: Refresh token to store (will be hashed)
+        expires_in_days: Token expiry in days. If None, uses JWT_REFRESH_EXPIRY_DAYS env var (default 7)
+    """
+    if expires_in_days is None:
+        expires_in_days = int(os.environ.get("JWT_REFRESH_EXPIRY_DAYS", 7))
+    
+    expires_at = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
     engine = get_engine()
     with engine.begin() as conn:
         conn.execute(
@@ -631,9 +638,33 @@ def get_user_sessions(user_id: str, limit: int = 50) -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def get_session_user_id(session_id: str) -> str | None:
+    """Get the user ID associated with a session.
+    
+    Args:
+        session_id: Session ID (UUID)
+    
+    Returns:
+        user_id as string if session exists, None otherwise
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        user_id = conn.execute(
+            text(
+                """
+                SELECT user_id::text FROM sessions
+                WHERE session_id = CAST(:session_id AS UUID)
+                """
+            ),
+            {"session_id": session_id},
+        ).scalar()
+    return user_id
+
+
 # ============================================================================
 # Chat Messages (Audit Log)
 # ============================================================================
+
 
 
 def get_session_messages(session_id: str) -> list[dict]:
@@ -684,3 +715,16 @@ def add_session_message(session_id: str, role: str, content: str) -> None:
             ),
             {"session_id": session_id, "role": role, "content": content},
         )
+
+
+def log_message(session_id: str, role: str, content: str) -> None:
+    """Convenience alias for add_session_message.
+    
+    Add a message to a chat session's audit log.
+    
+    Args:
+        session_id: Session ID
+        role: Message role ('user', 'assistant', etc.)
+        content: Message content
+    """
+    add_session_message(session_id, role, content)
