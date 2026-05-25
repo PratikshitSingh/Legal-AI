@@ -629,3 +629,58 @@ def get_user_sessions(user_id: str, limit: int = 50) -> list[dict]:
             {"user_id": user_id, "limit": limit},
         ).mappings().all()
     return [dict(row) for row in rows]
+
+
+# ============================================================================
+# Chat Messages (Audit Log)
+# ============================================================================
+
+
+def get_session_messages(session_id: str) -> list[dict]:
+    """Get all messages in a chat session.
+    
+    Args:
+        session_id: Session ID to fetch messages for
+    
+    Returns:
+        List of message dicts with id, role, content, created_at
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT 
+                    id,
+                    role,
+                    content,
+                    created_at
+                FROM audit_log
+                WHERE session_id = CAST(:session_id AS UUID)
+                ORDER BY created_at ASC
+                """
+            ),
+            {"session_id": session_id},
+        ).mappings().all()
+    return [dict(row) for row in rows]
+
+
+def add_session_message(session_id: str, role: str, content: str) -> None:
+    """Add a message to a chat session's audit log.
+    
+    Args:
+        session_id: Session ID
+        role: Message role ('user', 'assistant', etc.)
+        content: Message content
+    """
+    engine = get_engine()
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                INSERT INTO audit_log (session_id, role, content)
+                VALUES (CAST(:session_id AS UUID), :role, :content)
+                """
+            ),
+            {"session_id": session_id, "role": role, "content": content},
+        )
