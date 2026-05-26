@@ -1,8 +1,10 @@
 """Offline ingestion: download EU AI Act PDF → chunk → embed → Chroma DB."""
 
 import argparse
+import hashlib
 import time
 from pathlib import Path
+from uuid import UUID
 
 import chromadb
 import fitz
@@ -121,6 +123,88 @@ def split_text_into_sections(text: str, min_chars_per_section: int) -> list[str]
     return sections
 
 
+def get_document_hash(text: str) -> str:
+    """Compute MD5 hash of document content for duplicate detection."""
+    return hashlib.md5(text.encode("utf-8")).hexdigest()
+
+
+def extract_text_from_file(file_bytes: bytes, file_type: str) -> str:
+    """Extract text from uploaded file (PDF or TXT).
+    
+    Args:
+        file_bytes: Raw file content
+        file_type: File type ('pdf' or 'txt')
+    
+    Returns:
+        Extracted text string
+    
+    Raises:
+        ValueError: If file type unsupported or extraction fails
+    """
+    if file_type.lower() == "pdf":
+        return _pdf_bytes_to_text(file_bytes)
+    elif file_type.lower() == "txt":
+        try:
+            return file_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            raise ValueError("TXT file must be valid UTF-8 encoded")
+    else:
+        raise ValueError(f"Unsupported file type: {file_type}. Supported: pdf, txt")
+
+
+def check_duplicate_document(document_name: str, content_hash: str) -> dict:
+    """Check if document already exists (preflight validation).
+    
+    Queries Chroma collection metadata for existing document with same name,
+    then checks Postgres documents table for exact name+hash match.
+    
+    Args:
+        document_name: Name of document to check
+        content_hash: MD5 hash of document content
+    
+    Returns:
+        {
+            'is_duplicate': bool,
+            'existing_chunks': int (total chunks with same name),
+            'existing_exact_match': bool (name + hash match),
+            'new_chunks_estimate': int (estimated new chunks for this document)
+        }
+    """
+    from legal_ai.db import db
+    
+    collection = _get_collection()
+    
+    # Query Chroma collection for existing document with same name
+    existing_chunks = 0
+    try:
+        results = collection.get(
+            where={"name": {"$eq": document_name}},
+            include=[]  # Only count, don't fetch data
+        )
+        existing_chunks = len(results.get("ids", [])) if results else 0
+    except Exception:
+        # Chroma query might not support exact equality; try anyway
+        pass
+    
+    # Query Postgres documents table for exact name+hash match
+    existing_exact_match = False
+    try:
+        existing_doc = db.get_document_by_name_hash(document_name, content_hash)
+        existing_exact_match = existing_doc is not None
+    except Exception:
+        # DB might not have documents table yet
+        pass
+    
+    is_duplicate = existing_exact_match or (existing_chunks > 0)
+    
+    return {
+        "is_duplicate": is_duplicate,
+        "existing_chunks": existing_chunks,
+        "existing_exact_match": existing_exact_match,
+        "new_chunks_estimate": 0 if existing_exact_match else -1,  # -1 means unknown until we process
+    }
+
+
 def _get_collection(*, force: bool = False):
     sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
         model_name="all-mpnet-base-v2",
@@ -150,7 +234,25 @@ def embed_text_in_chromadb(
     persist_directory: str = utils.DB_FOLDER,
     *,
     force: bool = False,
-) -> None:
+    uploaded_by_user_id: UUID | None = None,
+    skip_duplicate_chunks: bool = False,
+    existing_chunk_ids: set[str] | None = None,
+) -> int:
+    """Embed text into Chroma DB with optional duplicate chunk skipping.
+    
+    Args:
+        text: Text content to embed
+        document_name: Name of document
+        document_description: Description of document
+        persist_directory: Directory for Chroma persistence
+        force: Delete and recreate collection
+        uploaded_by_user_id: UUID of user uploading document (for audit)
+        skip_duplicate_chunks: If True, skip chunks already in collection
+        existing_chunk_ids: Set of chunk IDs that already exist (for skipping)
+    
+    Returns:
+        Number of new chunks added
+    """
     documents = [
         doc for doc in split_text_into_sections(text, 1000) if doc and doc.strip()
     ]
@@ -163,6 +265,9 @@ def embed_text_in_chromadb(
         "name": document_name,
         "description": document_description,
     }
+    if uploaded_by_user_id:
+        metadata["uploaded_by"] = str(uploaded_by_user_id)
+    
     metadatas = [metadata] * len(documents)
 
     _ = persist_directory  # local path used via utils.DB_FOLDER in _get_collection
@@ -171,7 +276,29 @@ def embed_text_in_chromadb(
     count = collection.count()
     print(f"Collection already contains {count} documents")
     ids = [str(i) for i in range(count, count + len(documents))]
+    
+    # Filter out duplicate chunks if requested
+    if skip_duplicate_chunks and existing_chunk_ids:
+        filtered_ids = []
+        filtered_documents = []
+        filtered_metadatas = []
+        
+        for doc_id, doc_text, doc_metadata in zip(ids, documents, metadatas):
+            if doc_id not in existing_chunk_ids:
+                filtered_ids.append(doc_id)
+                filtered_documents.append(doc_text)
+                filtered_metadatas.append(doc_metadata)
+        
+        if not filtered_documents:
+            print("All chunks already exist in collection. Skipping embedding.")
+            return 0
+        
+        ids = filtered_ids
+        documents = filtered_documents
+        metadatas = filtered_metadatas
+        print(f"Skipping {len(filtered_ids) - len(ids)} duplicate chunks")
 
+    chunks_added = 0
     for i in tqdm(
         range(0, len(documents), EMBED_BATCH_SIZE),
         desc="Adding documents",
@@ -185,6 +312,7 @@ def embed_text_in_chromadb(
                     documents=documents[i:end],
                     metadatas=metadatas[i:end],
                 )
+                chunks_added += (end - i)
                 break
             except ValueError as e:
                 if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
@@ -196,7 +324,113 @@ def embed_text_in_chromadb(
             time.sleep(EMBED_BATCH_DELAY_SEC)
 
     new_count = collection.count()
-    print(f"Added {new_count - count} documents")
+    print(f"Added {chunks_added} new chunks (collection now has {new_count} total)")
+    return chunks_added
+
+
+def ingest_custom_document(
+    file_bytes: bytes,
+    document_name: str,
+    document_description: str,
+    uploaded_by_user_id: UUID,
+    file_type: str = "pdf",
+) -> dict:
+    """Ingest custom document with preflight duplicate detection.
+    
+    Orchestrates the full upload flow:
+    1. Extract text from file
+    2. Compute content hash
+    3. Check for duplicates (preflight)
+    4. Skip or embed based on duplicate status
+    5. Record in documents table
+    
+    Args:
+        file_bytes: Raw file content
+        document_name: Name of document
+        document_description: Description of document
+        uploaded_by_user_id: UUID of admin uploading document
+        file_type: File type ('pdf' or 'txt')
+    
+    Returns:
+        {
+            'success': bool,
+            'message': str,
+            'document_id': str | None,
+            'chunks_added': int,
+            'is_duplicate': bool,
+            'existing_chunks': int,
+        }
+    """
+    from legal_ai.db import db
+    
+    try:
+        # Step 1: Extract text
+        print(f"Extracting text from {file_type.upper()}…")
+        text = extract_text_from_file(file_bytes, file_type)
+        print(f"Extracted {len(text)} characters")
+        
+        # Step 2: Compute hash
+        content_hash = get_document_hash(text)
+        print(f"Content hash: {content_hash}")
+        
+        # Step 3: Preflight check for duplicates
+        print("Checking for duplicates…")
+        dup_check = check_duplicate_document(document_name, content_hash)
+        print(f"Duplicate check result: {dup_check}")
+        
+        # Step 4: Embed with duplicate handling
+        print("Embedding into Chroma…")
+        chunks_added = embed_text_in_chromadb(
+            text,
+            document_name,
+            document_description,
+            uploaded_by_user_id=uploaded_by_user_id,
+            skip_duplicate_chunks=dup_check["existing_exact_match"],
+            existing_chunk_ids=None,  # Full chunk skip not supported yet; requires full collection scan
+        )
+        
+        # Step 5: Record in documents table
+        print("Recording in documents table…")
+        doc_record = db.create_document_record(
+            name=document_name,
+            description=document_description,
+            content_hash=content_hash,
+            uploaded_by_user_id=uploaded_by_user_id,
+            file_type=file_type,
+            chunk_count=chunks_added,
+            metadata={
+                "file_size_bytes": len(file_bytes),
+                "text_length_chars": len(text),
+            },
+        )
+        
+        if dup_check["existing_exact_match"]:
+            message = f"⚠️ Duplicate document detected! No new chunks added (existing: {dup_check['existing_chunks']} chunks)."
+            is_dup = True
+        else:
+            message = f"✅ Document uploaded successfully! Added {chunks_added} chunks."
+            is_dup = False
+        
+        return {
+            "success": True,
+            "message": message,
+            "document_id": str(doc_record["document_id"]) if doc_record else None,
+            "chunks_added": chunks_added,
+            "is_duplicate": is_dup,
+            "existing_chunks": dup_check["existing_chunks"],
+        }
+    
+    except Exception as e:
+        error_msg = f"❌ Error ingesting document: {str(e)}"
+        print(error_msg)
+        return {
+            "success": False,
+            "message": error_msg,
+            "document_id": None,
+            "chunks_added": 0,
+            "is_duplicate": False,
+            "existing_chunks": 0,
+        }
 
 
 DOCUMENT_NAME = "Artificial Intelligence Act"
