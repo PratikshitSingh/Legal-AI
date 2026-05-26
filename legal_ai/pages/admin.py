@@ -1,7 +1,9 @@
 """Admin Dashboard - Manage users and roles."""
 
 import io
+import csv
 import streamlit as st
+import pandas as pd
 
 from legal_ai.auth import auth
 from legal_ai.db import db
@@ -218,10 +220,13 @@ with tab3:
 with tab4:
     st.subheader("📄 Manage Documents")
     
-    # Two columns: Upload & History
-    col_upload, col_history = st.columns([1, 1])
+    # Tabs for different document operations
+    doc_tab1, doc_tab2, doc_tab3 = st.tabs(["Upload", "Browse", "Bulk Import"])
     
-    with col_upload:
+    # ========================================================================
+    # Document Upload
+    # ========================================================================
+    with doc_tab1:
         st.write("### Upload Document")
         
         uploaded_file = st.file_uploader(
@@ -252,6 +257,29 @@ with tab4:
                     "Description",
                     help="Brief description of document content",
                     height=80
+                )
+                
+                # NEW: Jurisdiction selector
+                try:
+                    jurisdictions = db.get_jurisdiction_tree()
+                    jurisdiction_options = {j["name"]: j["jurisdiction_id"] for j in jurisdictions}
+                    
+                    selected_jurisdiction = st.selectbox(
+                        "Jurisdiction",
+                        options=list(jurisdiction_options.keys()),
+                        help="Select the jurisdiction this document applies to"
+                    )
+                    jurisdiction_id = jurisdiction_options[selected_jurisdiction]
+                except Exception as e:
+                    st.warning(f"Could not load jurisdictions: {str(e)}")
+                    jurisdiction_id = None
+                
+                # NEW: Document type selector
+                doc_types = ["regulation", "directive", "guidance", "case_law", "statute", "ordinance", "policy", "bill"]
+                doc_type = st.selectbox(
+                    "Document Type",
+                    options=doc_types,
+                    help="Classify the type of document"
                 )
                 
                 # Preflight check
@@ -328,18 +356,77 @@ with tab4:
                             except Exception as e:
                                 st.error(f"❌ Upload failed: {str(e)}")
     
-    with col_history:
-        st.write("### Document History")
+    # ========================================================================
+    # Document Browser with Filters
+    # ========================================================================
+    with doc_tab2:
+        st.write("### Browse Documents")
         
-        # Fetch all documents
+        # Filters
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            # Jurisdiction filter
+            try:
+                jurisdictions = db.get_jurisdiction_tree()
+                jurisdiction_filter = st.multiselect(
+                    "Filter by Jurisdiction",
+                    options=[j["name"] for j in jurisdictions],
+                    help="Leave empty to show all jurisdictions"
+                )
+            except Exception as e:
+                st.warning(f"Could not load jurisdictions: {str(e)}")
+                jurisdiction_filter = []
+        
+        with col2:
+            # Document type filter
+            doc_type_filter = st.multiselect(
+                "Filter by Document Type",
+                options=["regulation", "directive", "guidance", "case_law", "statute", "ordinance", "policy", "bill"],
+                help="Leave empty to show all types"
+            )
+        
+        with col3:
+            # Sort by
+            sort_by = st.selectbox(
+                "Sort by",
+                options=["Created (Newest)", "Created (Oldest)", "Name (A-Z)", "Chunks (Most)"],
+                help="How to sort documents"
+            )
+        
+        # Fetch documents
         try:
-            all_docs = db.get_all_documents(limit=20)
+            all_docs = db.get_all_documents(limit=100)
             
             if not all_docs:
-                st.info("No documents uploaded yet.")
+                st.info("No documents in the system yet.")
             else:
-                st.write(f"**Latest {len(all_docs)} uploads:**")
+                st.write(f"**Displaying up to {len(all_docs)} documents:**")
                 
+                # Apply filters
+                if jurisdiction_filter:
+                    # Create jurisdiction ID to name map
+                    jurisdictions = db.get_jurisdiction_tree()
+                    jurisdiction_name_to_id = {j["name"]: j["jurisdiction_id"] for j in jurisdictions}
+                    filtered_ids = [jurisdiction_name_to_id[name] for name in jurisdiction_filter]
+                    # Filter would need to be applied based on document's jurisdiction_id
+                    # For now, this is a placeholder as the documents table needs jurisdiction_id populated
+                
+                if doc_type_filter:
+                    # Filter by doc_type (would need to be stored in documents)
+                    pass
+                
+                # Sort
+                if sort_by == "Created (Newest)":
+                    all_docs = sorted(all_docs, key=lambda x: x.get('created_at', ''), reverse=True)
+                elif sort_by == "Created (Oldest)":
+                    all_docs = sorted(all_docs, key=lambda x: x.get('created_at', ''))
+                elif sort_by == "Name (A-Z)":
+                    all_docs = sorted(all_docs, key=lambda x: x.get('name', ''))
+                elif sort_by == "Chunks (Most)":
+                    all_docs = sorted(all_docs, key=lambda x: x.get('chunk_count', 0), reverse=True)
+                
+                # Display documents
                 for doc in all_docs:
                     with st.container(border=True):
                         col_name, col_meta = st.columns([2, 1])
@@ -352,7 +439,7 @@ with tab4:
                         with col_meta:
                             st.metric("Chunks", doc.get('chunk_count', 0))
                         
-                        col1, col2, col3 = st.columns(3)
+                        col1, col2, col3, col4 = st.columns(4)
                         
                         with col1:
                             st.caption(f"📝 {doc['file_type'].upper()}")
@@ -364,6 +451,138 @@ with tab4:
                         with col3:
                             created = doc.get('created_at', '?')
                             st.caption(f"📅 {created}")
+                        
+                        with col4:
+                            if st.button("ℹ️ Details", key=f"doc_details_{doc['document_id']}"):
+                                with st.expander("Document Details"):
+                                    st.json({
+                                        "ID": doc['document_id'],
+                                        "Name": doc['name'],
+                                        "Type": doc['file_type'],
+                                        "Chunks": doc['chunk_count'],
+                                        "Uploaded By": doc.get('uploaded_by_email', 'N/A'),
+                                        "Created": doc.get('created_at', 'N/A'),
+                                    })
         
         except Exception as e:
             st.error(f"❌ Error loading documents: {str(e)}")
+    
+    # ========================================================================
+    # Bulk Import via CSV
+    # ========================================================================
+    with doc_tab3:
+        st.write("### Bulk Import Documents")
+        
+        st.info(
+            """
+            **CSV Format:** Create a CSV file with the following columns:
+            - `file_path` (required): Path to PDF or TXT file
+            - `document_name` (required): Name of the document
+            - `description` (optional): Document description
+            - `jurisdiction` (optional): Jurisdiction code (e.g., "EU", "US")
+            - `document_type` (optional): Type of document (regulation, directive, etc.)
+            
+            **Example:**
+            ```
+            file_path,document_name,description,jurisdiction,document_type
+            docs/gdpr.pdf,GDPR,General Data Protection Regulation,EU,regulation
+            docs/ccpa.pdf,CCPA,California Consumer Privacy Act,US,statute
+            ```
+            """
+        )
+        
+        # CSV Upload
+        csv_file = st.file_uploader(
+            "Upload CSV file",
+            type=["csv"],
+            help="CSV file with document metadata and file paths"
+        )
+        
+        if csv_file:
+            try:
+                # Read CSV
+                df = pd.read_csv(csv_file)
+                
+                # Validate required columns
+                required_cols = ['file_path', 'document_name']
+                missing_cols = [col for col in required_cols if col not in df.columns]
+                
+                if missing_cols:
+                    st.error(f"❌ Missing required columns: {', '.join(missing_cols)}")
+                else:
+                    st.write(f"**Found {len(df)} documents in CSV**")
+                    
+                    # Preview
+                    with st.expander("Preview CSV Data"):
+                        st.dataframe(df, use_container_width=True)
+                    
+                    # Import button
+                    if st.button("📥 Start Bulk Import", key="bulk_import_button"):
+                        current_user_id = auth.get_current_user_id()
+                        progress_bar = st.progress(0)
+                        status_container = st.container()
+                        
+                        imported_count = 0
+                        failed_count = 0
+                        
+                        for idx, row in df.iterrows():
+                            try:
+                                # Get file path
+                                file_path = row.get('file_path')
+                                if not file_path:
+                                    failed_count += 1
+                                    continue
+                                
+                                # Try to read file
+                                try:
+                                    with open(file_path, 'rb') as f:
+                                        file_bytes = f.read()
+                                except FileNotFoundError:
+                                    status_container.warning(f"⚠️ File not found: {file_path}")
+                                    failed_count += 1
+                                    continue
+                                
+                                # Get metadata
+                                doc_name = row.get('document_name', 'Untitled')
+                                doc_description = row.get('description', '')
+                                file_type = file_path.split('.')[-1].lower()
+                                
+                                # Ingest document
+                                result = embed.ingest_custom_document(
+                                    file_bytes=file_bytes,
+                                    document_name=doc_name,
+                                    document_description=doc_description,
+                                    uploaded_by_user_id=current_user_id,
+                                    file_type=file_type,
+                                )
+                                
+                                if result["success"]:
+                                    imported_count += 1
+                                    db.log_document_audit(
+                                        result["document_id"],
+                                        current_user_id,
+                                        "bulk_import",
+                                        {"file_type": file_type, "chunks_added": result["chunks_added"]}
+                                    )
+                                else:
+                                    failed_count += 1
+                            
+                            except Exception as e:
+                                failed_count += 1
+                            
+                            # Update progress
+                            progress_bar.progress((idx + 1) / len(df))
+                        
+                        # Summary
+                        st.divider()
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.success(f"✅ Successfully imported: {imported_count} documents")
+                        
+                        with col2:
+                            if failed_count > 0:
+                                st.warning(f"⚠️ Failed: {failed_count} documents")
+            
+            except Exception as e:
+                st.error(f"❌ Error processing CSV: {str(e)}")

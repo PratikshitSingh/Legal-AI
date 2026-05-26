@@ -24,7 +24,7 @@ from legal_ai.auth.auth import (
     switch_to_session,
     verify_magic_link_token,
 )
-from legal_ai.db.db import get_session_messages
+from legal_ai.db.db import get_session_messages, get_jurisdiction_tree, get_user_jurisdictions, update_user_jurisdictions
 from legal_ai.services.gateway import clear_chat_cache, route_query
 
 
@@ -147,6 +147,48 @@ def render_sidebar(session_id: str) -> None:
             sign_out()
             ST.rerun()
 
+        # Jurisdiction Filter
+        ST.divider()
+        ST.subheader("🌍 Jurisdictions")
+        
+        try:
+            # Get user's current jurisdictions
+            user_id = get_current_user_id()
+            current_jurisdictions = get_user_jurisdictions(user_id)
+            current_ids = [j["jurisdiction_id"] for j in current_jurisdictions] if current_jurisdictions else []
+            
+            # Get jurisdiction tree for selector
+            jurisdictions = get_jurisdiction_tree()
+            
+            # Create jurisdiction options
+            jurisdiction_options = {j["name"]: j["jurisdiction_id"] for j in jurisdictions}
+            
+            # Multi-select jurisdictions
+            selected_names = ST.multiselect(
+                "Select jurisdictions to search:",
+                options=list(jurisdiction_options.keys()),
+                default=[j["name"] for j in jurisdictions if j["jurisdiction_id"] in current_ids],
+                help="Select one or more jurisdictions to filter your searches"
+            )
+            
+            # Save user preferences
+            selected_ids = [jurisdiction_options[name] for name in selected_names]
+            if selected_ids and selected_ids != current_ids:
+                if ST.button("✅ Save Preferences", use_container_width=True, key="save_jurisdictions"):
+                    update_user_jurisdictions(user_id, selected_ids)
+                    ST.success("Jurisdiction preferences saved!")
+                    ST.rerun()
+            
+            # Store selected jurisdictions in session state for queries
+            ST.session_state["selected_jurisdictions"] = selected_ids
+            
+            # Add comparison page button
+            if ST.button("⚖️ Compare Jurisdictions", use_container_width=True):
+                ST.switch_page("pages/compare.py")
+        
+        except Exception as e:
+            ST.warning(f"Could not load jurisdictions: {str(e)}")
+
         ST.divider()
         ST.subheader("Chats")
         if ST.button("New chat", use_container_width=True):
@@ -200,10 +242,14 @@ def create_chat(chat_id: str, session_id: str) -> None:
             # Get current access token
             access_token = get_current_access_token()
             
+            # Get selected jurisdictions from session state
+            jurisdiction_ids = ST.session_state.get("selected_jurisdictions", [])
+            
             assistant_response = route_query(
                 question=prompt,
                 session_id=session_id,
                 jwt=access_token,
+                jurisdiction_ids=jurisdiction_ids if jurisdiction_ids else None,
             )
             chat.chat_message("assistant").write(assistant_response)
 

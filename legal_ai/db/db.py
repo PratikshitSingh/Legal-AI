@@ -944,3 +944,255 @@ def log_document_audit(document_id: str, user_id: str, action: str, details: dic
             )
     except Exception as e:
         print(f"Error logging document audit: {e}")
+
+
+# ============================================================================
+# Jurisdiction Management (Multi-Jurisdiction Support)
+# ============================================================================
+
+
+def get_jurisdiction_tree(parent_code: str | None = None) -> list[dict]:
+    """Get hierarchical jurisdiction structure for UI.
+    
+    Args:
+        parent_code: If provided, only return children of this jurisdiction code
+                     If None, returns root (WORLD)
+    
+    Returns:
+        List of jurisdiction dicts with nested children
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        if parent_code:
+            parent_id = conn.execute(
+                text("SELECT jurisdiction_id::text FROM jurisdictions WHERE code = :code"),
+                {"code": parent_code}
+            ).scalar()
+        else:
+            parent_id = None
+        
+        # Get jurisdictions at this level
+        query = """
+            SELECT 
+                jurisdiction_id::text,
+                code,
+                name,
+                level,
+                flag_emoji,
+                region_code
+            FROM jurisdictions
+            """
+        
+        params = {}
+        if parent_id:
+            query += "WHERE parent_jurisdiction_id = CAST(:parent_id AS UUID)"
+            params["parent_id"] = parent_id
+        else:
+            query += "WHERE code = 'WORLD'"
+        
+        query += " ORDER BY name"
+        
+        rows = conn.execute(text(query), params).mappings().all()
+    
+    return [dict(row) for row in rows]
+
+
+def get_user_jurisdictions(user_id: str) -> list[dict]:
+    """Get list of jurisdictions selected by user for default filtering.
+    
+    Args:
+        user_id: User ID
+    
+    Returns:
+        List of jurisdiction dicts with preference_order
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT 
+                    ujp.jurisdiction_id::text,
+                    j.code,
+                    j.name,
+                    j.level,
+                    ujp.preference_order
+                FROM user_jurisdiction_preferences ujp
+                JOIN jurisdictions j ON ujp.jurisdiction_id = j.jurisdiction_id
+                WHERE ujp.user_id = CAST(:user_id AS UUID)
+                ORDER BY ujp.preference_order ASC
+                """
+            ),
+            {"user_id": user_id}
+        ).mappings().all()
+    
+    return [dict(row) for row in rows]
+
+
+def update_user_jurisdictions(user_id: str, jurisdiction_ids: list[str]) -> bool:
+    """Save user's preferred jurisdictions for filtering.
+    
+    Args:
+        user_id: User ID
+        jurisdiction_ids: List of jurisdiction IDs (UUIDs as strings) in preferred order
+    
+    Returns:
+        True if updated successfully
+    """
+    engine = get_engine()
+    try:
+        with engine.begin() as conn:
+            # Delete existing preferences
+            conn.execute(
+                text(
+                    "DELETE FROM user_jurisdiction_preferences WHERE user_id = CAST(:user_id AS UUID)"
+                ),
+                {"user_id": user_id}
+            )
+            
+            # Insert new preferences
+            for order, jid in enumerate(jurisdiction_ids, start=1):
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO user_jurisdiction_preferences (user_id, jurisdiction_id, preference_order)
+                        VALUES (CAST(:user_id AS UUID), CAST(:jurisdiction_id AS UUID), :order)
+                        """
+                    ),
+                    {"user_id": user_id, "jurisdiction_id": jid, "order": order}
+                )
+        
+        return True
+    except Exception as e:
+        print(f"Error updating user jurisdictions: {e}")
+        return False
+
+
+def get_document_versions(document_id: str) -> list[dict]:
+    """Get all versions of a document with change summary.
+    
+    Args:
+        document_id: Document ID
+    
+    Returns:
+        List of version dicts ordered by effective_date DESC
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT 
+                    version_id::text,
+                    document_id::text,
+                    version,
+                    effective_date,
+                    created_by::text,
+                    change_summary,
+                    superseded_by_version_id::text,
+                    created_at
+                FROM document_versions
+                WHERE document_id = CAST(:document_id AS UUID)
+                ORDER BY effective_date DESC
+                """
+            ),
+            {"document_id": document_id}
+        ).mappings().all()
+    
+    return [dict(row) for row in rows]
+
+
+def create_document_version(
+    document_id: str,
+    version: str,
+    effective_date: str,
+    change_summary: str,
+    created_by_user_id: str | None = None
+) -> dict | None:
+    """Create a new version record for a document.
+    
+    Args:
+        document_id: Document ID
+        version: Version string (e.g., "1.1", "2.0")
+        effective_date: Date version becomes effective (ISO format)
+        change_summary: Summary of changes in this version
+        created_by_user_id: User ID creating the version (optional)
+    
+    Returns:
+        Version record dict, or None if error
+    """
+    engine = get_engine()
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    """
+                    INSERT INTO document_versions (
+                        document_id, version, effective_date, change_summary, created_by
+                    )
+                    VALUES (
+                        CAST(:document_id AS UUID),
+                        :version,
+                        CAST(:effective_date AS DATE),
+                        :change_summary,
+                        CAST(:created_by AS UUID)
+                    )
+                    RETURNING version_id::text, document_id::text, version, effective_date, created_at
+                    """
+                ),
+                {
+                    "document_id": document_id,
+                    "version": version,
+                    "effective_date": effective_date,
+                    "change_summary": change_summary,
+                    "created_by": created_by_user_id
+                }
+            ).mappings().first()
+        
+        return dict(result) if result else None
+    except Exception as e:
+        print(f"Error creating document version: {e}")
+        return None
+
+
+def get_documents_by_jurisdiction(jurisdiction_id: str, limit: int = 50) -> list[dict]:
+    """Get all documents for a specific jurisdiction.
+    
+    Args:
+        jurisdiction_id: Jurisdiction ID (UUID as string)
+        limit: Maximum documents to return
+    
+    Returns:
+        List of document dicts
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT 
+                    d.document_id::text,
+                    d.name,
+                    d.description,
+                    d.jurisdiction_id::text,
+                    j.code as jurisdiction_code,
+                    j.name as jurisdiction_name,
+                    d.version,
+                    d.status,
+                    d.effective_date,
+                    d.doc_type_id::text,
+                    dt.name as doc_type,
+                    d.created_at
+                FROM documents d
+                JOIN jurisdictions j ON d.jurisdiction_id = j.jurisdiction_id
+                LEFT JOIN document_types dt ON d.doc_type_id = dt.doc_type_id
+                WHERE d.jurisdiction_id = CAST(:jurisdiction_id AS UUID)
+                AND d.is_latest = true
+                ORDER BY d.effective_date DESC
+                LIMIT :limit
+                """
+            ),
+            {"jurisdiction_id": jurisdiction_id, "limit": limit}
+        ).mappings().all()
+    
+    return [dict(row) for row in rows]

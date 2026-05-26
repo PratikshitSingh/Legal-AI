@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS documents (
     name TEXT NOT NULL,
     description TEXT,
     content_hash TEXT NOT NULL,
-    uploaded_by UUID NOT NULL REFERENCES users(user_id) ON DELETE SET NULL,
+    uploaded_by UUID REFERENCES users(user_id) ON DELETE SET NULL,
     file_type TEXT DEFAULT 'pdf' NOT NULL,
     chunk_count INT DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -34,7 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_content_hash ON documents(content_hash)
 CREATE TABLE IF NOT EXISTS document_audit_log (
     audit_id BIGSERIAL PRIMARY KEY,
     document_id UUID NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE SET NULL,
+    user_id UUID REFERENCES users(user_id) ON DELETE SET NULL,
     action TEXT NOT NULL,
     details JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

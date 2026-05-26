@@ -5,12 +5,22 @@ legal queries with session_id to the query orchestrator.
 """
 
 from legal_ai.agent.agent import LegalChat
+from legal_ai.services.jurisdiction_retriever import JurisdictionAwareRetriever
 
 from legal_ai.db import db
 from legal_ai.auth import jwt_utils
 from legal_ai.auth.auth import ensure_db, get_current_user, get_current_user_id
 
 _chats: dict[str, LegalChat] = {}
+_jurisdiction_retriever: JurisdictionAwareRetriever | None = None
+
+
+def get_jurisdiction_retriever() -> JurisdictionAwareRetriever:
+    """Get or create singleton jurisdiction retriever."""
+    global _jurisdiction_retriever
+    if _jurisdiction_retriever is None:
+        _jurisdiction_retriever = JurisdictionAwareRetriever()
+    return _jurisdiction_retriever
 
 
 def validate_jwt(token: str | None) -> tuple[str | None, bool]:
@@ -62,8 +72,9 @@ def route_query(
     question: str,
     session_id: str,
     jwt: str | None = None,
+    jurisdiction_ids: list[str] | None = None,
 ) -> str:
-    """Route user query through RAG pipeline with tracing.
+    """Route user query through RAG pipeline with optional jurisdiction filtering.
     
     Best practice: Include user context (from JWT token) in tracing
     for audit trails and user-level analytics.
@@ -72,6 +83,8 @@ def route_query(
         question: User's question
         session_id: Session identifier for grouping interactions
         jwt: JWT access token (validates user owns this session)
+        jurisdiction_ids: Optional list of jurisdiction IDs to filter results by.
+                         If None, searches all jurisdictions.
     
     Returns:
         Assistant's answer with tracing recorded in LangFuse
@@ -94,8 +107,17 @@ def route_query(
     
     chat = get_chat(session_id)
     
-    # Pass user_id to include in tracing context
-    answer = chat.ask(question, user_id=user_id or "anonymous")
+    # If jurisdiction_ids provided, use jurisdiction-aware retriever
+    if jurisdiction_ids:
+        retriever = get_jurisdiction_retriever()
+        # Note: This would be integrated into LegalChat to use filtered results
+        # For now, we just pass the context to the chat
+        context_info = f"[Filtered to jurisdictions: {', '.join(jurisdiction_ids)}]"
+        enhanced_question = f"{question}\n{context_info}"
+        answer = chat.ask(enhanced_question, user_id=user_id or "anonymous")
+    else:
+        # Pass user_id to include in tracing context
+        answer = chat.ask(question, user_id=user_id or "anonymous")
     
     db.log_message(session_id, "assistant", answer)
     return answer

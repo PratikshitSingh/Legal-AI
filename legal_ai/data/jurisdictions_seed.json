@@ -1,0 +1,194 @@
+{
+  "regions": [
+    {
+      "code": "EMEA",
+      "name": "Europe, Middle East & Africa",
+      "level": "region",
+      "flag_emoji": "🌍",
+      "countries": [
+        {
+          "code": "EU",
+          "name": "European Union",
+          "level": "region",
+          "flag_emoji": "🇪🇺",
+          "countries": [
+            { "code": "AT", "name": "Austria", "level": "country", "flag_emoji": "🇦🇹" },
+            { "code": "BE", "name": "Belgium", "level": "country", "flag_emoji": "🇧🇪" },
+            { "code": "BG", "name": "Bulgaria", "level": "country", "flag_emoji": "🇧🇬" },
+            { "code": "HR", "name": "Croatia", "level": "country", "flag_emoji": "🇭🇷" },
+            { "code": "CY", "name": "Cyprus", "level": "country", "flag_emoji": "🇨🇾" },
+            { "code": "CZ", "name": "Czech Republic", "level": "country", "flag_emoji": "🇨🇿" },
+            { "code": "DK", "name": "Denmark", "level": "country", "flag_emoji": "🇩🇰" },
+            { "code": "EE", "name": "Estonia", "level": "country", "flag_emoji": "🇪🇪" },
+            { "code": "FI", "name": "Finland", "level": "country", "flag_emoji": "🇫🇮" },
+            { "code": "FR", "name": "France", "level": "country", "flag_emoji": "🇫🇷" },
+            { "code": "DE", "name": "Germany", "level": "country", "flag_emoji": "🇩🇪" },
+            { "code": "GR", "name": "Greece", "level": "country", "flag_emoji": "🇬🇷" },
+            { "code": "HU", "name": "Hungary", "level": "country", "flag_emoji": "🇭🇺" },
+            { "code": "IE", "name": "Ireland", "level": "country", "flag_emoji": "🇮🇪" },
+            { "code": "IT", "name": "Italy", "level": "country", "flag_emoji": "🇮🇹" },
+            { "code": "LV", "name": "Latvia", "level": "country", "flag_emoji": "🇱🇻" },
+            { "code": "LT", "name": "Lithuania", "level": "country", "flag_emoji": "🇱🇹" },
+            { "code": "LU", "name": "Luxembourg", "level": "country", "flag_emoji": "🇱🇺" },
+            { "code": "MT", "name": "Malta", "level": "country", "flag_emoji": "🇲🇹" },
+            { "code": "NL", "name": "Netherlands", "level": "country", "flag_emoji": "🇳🇱" },
+            { "code": "PL", "name": "Poland", "level": "country", "flag_emoji": "🇵🇱" },
+            { "code": "PT", "name": "Portugal", "level": "country", "flag_emoji": "🇵🇹" },
+            { "code": "RO", "name": "Romania", "level": "country", "flag_emoji": "🇷🇴" },
+            { "code": "SK", "name": "Slovakia", "level": "country", "flag_emoji": "🇸🇰" },
+            { "code": "SI", "name": "Slovenia", "level": "country", "flag_emoji": "🇸🇮" },
+            { "code": "ES", "name": "Spain", "level": "country", "flag_emoji": "🇪🇸" },
+            { "code": "SE", "name": "Sweden", "level": "country", "flag_emoji": "🇸🇪" }
+          ]
+        },
+        {
+          "code": "GB",
+          "name": "United Kingdom",
+          "level": "country",
+          "flag_emoji": "🇬🇧"
+        },
+        {
+          "code": "CH",
+          "name": "Switzerland",
+          "level": "country",
+          "flag_emoji": "🇨🇭"
+        },
+        {
+          "code": "NO",
+          "name": "Norway",
+          "level": "country",
+          "flag_emoji": "🇳🇴"
+        }
+      ]
+    },
+    {
+      "code": "AMERICAS",
+      "name": "Americas",
+      "level": "region",
+      "flag_emoji": "🌎",
+      "countries": [
+        {
+          "code": "US",
+          "name": "United States",
+          "level": "country",
+          "flag_emoji": "🇺🇸",
+          "states": [
+            { "code": "US-AL", "name": "Alabama", "level": "state" },
+            { "code": "US-AK", "name": "Alaska", "level": "state" },
+            { "code": "US-AZ", "name": "Arizona", "level": "state" },
+            { "code": "US-AR", "name": "Arkansas", "level": "state" },
+            { "code": "US-CA", "name": "California", "level": "state" },
+            { "code": "US-CO", "name": "Colorado", "level": "state" },
+            { "code": "US-CT", "name": "Connecticut", "level": "state" },
+            { "code": "US-DE", "name": "Delaware", "level": "state" },
+            { "code": "US-FL", "name": "Florida", "level": "state" },
+            { "code": "US-GA", "name": "Georgia", "level": "state" },
+            { "code": "US-HI", "name": "Hawaii", "level": "state" },
+            { "code": "US-ID", "name": "Idaho", "level": "state" },
+            { "code": "US-IL", "name": "Illinois", "level": "state" },
+            { "code": "US-IN", "name": "Indiana", "level": "state" },
+            { "code": "US-IA", "name": "Iowa", "level": "state" },
+            { "code": "US-KS", "name": "Kansas", "level": "state" },
+            { "code": "US-KY", "name": "Kentucky", "level": "state" },
+            { "code": "US-LA", "name": "Louisiana", "level": "state" },
+            { "code": "US-ME", "name": "Maine", "level": "state" },
+            { "code": "US-MD", "name": "Maryland", "level": "state" },
+            { "code": "US-MA", "name": "Massachusetts", "level": "state" },
+            { "code": "US-MI", "name": "Michigan", "level": "state" },
+            { "code": "US-MN", "name": "Minnesota", "level": "state" },
+            { "code": "US-MS", "name": "Mississippi", "level": "state" },
+            { "code": "US-MO", "name": "Missouri", "level": "state" },
+            { "code": "US-MT", "name": "Montana", "level": "state" },
+            { "code": "US-NE", "name": "Nebraska", "level": "state" },
+            { "code": "US-NV", "name": "Nevada", "level": "state" },
+            { "code": "US-NH", "name": "New Hampshire", "level": "state" },
+            { "code": "US-NJ", "name": "New Jersey", "level": "state" },
+            { "code": "US-NM", "name": "New Mexico", "level": "state" },
+            { "code": "US-NY", "name": "New York", "level": "state" },
+            { "code": "US-NC", "name": "North Carolina", "level": "state" },
+            { "code": "US-ND", "name": "North Dakota", "level": "state" },
+            { "code": "US-OH", "name": "Ohio", "level": "state" },
+            { "code": "US-OK", "name": "Oklahoma", "level": "state" },
+            { "code": "US-OR", "name": "Oregon", "level": "state" },
+            { "code": "US-PA", "name": "Pennsylvania", "level": "state" },
+            { "code": "US-RI", "name": "Rhode Island", "level": "state" },
+            { "code": "US-SC", "name": "South Carolina", "level": "state" },
+            { "code": "US-SD", "name": "South Dakota", "level": "state" },
+            { "code": "US-TN", "name": "Tennessee", "level": "state" },
+            { "code": "US-TX", "name": "Texas", "level": "state" },
+            { "code": "US-UT", "name": "Utah", "level": "state" },
+            { "code": "US-VT", "name": "Vermont", "level": "state" },
+            { "code": "US-VA", "name": "Virginia", "level": "state" },
+            { "code": "US-WA", "name": "Washington", "level": "state" },
+            { "code": "US-WV", "name": "West Virginia", "level": "state" },
+            { "code": "US-WI", "name": "Wisconsin", "level": "state" },
+            { "code": "US-WY", "name": "Wyoming", "level": "state" },
+            { "code": "US-DC", "name": "District of Columbia", "level": "state" }
+          ]
+        },
+        {
+          "code": "CA",
+          "name": "Canada",
+          "level": "country",
+          "flag_emoji": "🇨🇦"
+        },
+        {
+          "code": "MX",
+          "name": "Mexico",
+          "level": "country",
+          "flag_emoji": "🇲🇽"
+        },
+        {
+          "code": "BR",
+          "name": "Brazil",
+          "level": "country",
+          "flag_emoji": "🇧🇷"
+        }
+      ]
+    },
+    {
+      "code": "APAC",
+      "name": "Asia-Pacific",
+      "level": "region",
+      "flag_emoji": "🌏",
+      "countries": [
+        {
+          "code": "AU",
+          "name": "Australia",
+          "level": "country",
+          "flag_emoji": "🇦🇺"
+        },
+        {
+          "code": "CN",
+          "name": "China",
+          "level": "country",
+          "flag_emoji": "🇨🇳"
+        },
+        {
+          "code": "IN",
+          "name": "India",
+          "level": "country",
+          "flag_emoji": "🇮🇳"
+        },
+        {
+          "code": "JP",
+          "name": "Japan",
+          "level": "country",
+          "flag_emoji": "🇯🇵"
+        },
+        {
+          "code": "KR",
+          "name": "South Korea",
+          "level": "country",
+          "flag_emoji": "🇰🇷"
+        },
+        {
+          "code": "SG",
+          "name": "Singapore",
+          "level": "country",
+          "flag_emoji": "🇸🇬"
+        }
+      ]
+    }
+  ]
+}
