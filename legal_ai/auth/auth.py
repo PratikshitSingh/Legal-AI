@@ -3,6 +3,7 @@
 import os
 import secrets
 import uuid
+from urllib.parse import quote
 
 import streamlit as st
 
@@ -10,6 +11,7 @@ from legal_ai.db import db
 from legal_ai.services.email_service import send_magic_link_email
 from legal_ai.core import config, utils
 from . import jwt_utils
+from . import browser_storage
 
 _db_initialized = False
 
@@ -24,6 +26,50 @@ def ensure_db() -> None:
 # ============================================================================
 # Session State Helpers
 # ============================================================================
+
+
+def init_auth() -> None:
+    """
+    Initialize auth on page load.
+    Restores auth from query parameters (from magic link) or browser storage.
+    Should be called once at the start of each page.
+    """
+    # Only initialize once per session to avoid redundant work
+    if st.session_state.get("_legal_ai_auth_initialized"):
+        return
+    
+    st.session_state._legal_ai_auth_initialized = True
+    
+    # Try to restore from query parameters first (from magic link verification)
+    query_params = st.query_params
+    if all(k in query_params for k in ["user_id", "access_token", "email"]):
+        # Restore from query params (immediate from magic link)
+        st.session_state.legal_ai_user_id = query_params.get("user_id")
+        st.session_state.legal_ai_user_email = query_params.get("email")
+        st.session_state.legal_ai_access_token = query_params.get("access_token")
+        st.session_state.legal_ai_refresh_token = query_params.get("refresh_token", "")
+        st.session_state.legal_ai_user_role = query_params.get("role", "viewer")
+        st.session_state.legal_ai_user_full_name = query_params.get("full_name")
+        st.session_state.legal_ai_user_firm = query_params.get("firm")
+        
+        # Also save to browser storage for persistence
+        browser_storage.store_auth_in_browser(
+            st.session_state.legal_ai_user_id,
+            st.session_state.legal_ai_user_email,
+            st.session_state.legal_ai_access_token,
+            st.session_state.legal_ai_refresh_token,
+            st.session_state.legal_ai_user_role,
+            st.session_state.legal_ai_user_full_name,
+            st.session_state.legal_ai_user_firm,
+        )
+        
+        # Clear query params after restoring to prevent re-verification
+        st.query_params.clear()
+    
+    # If not in query params, check if already in session state
+    elif not st.session_state.get("legal_ai_user_id"):
+        # Session state is empty, try to restore from browser storage fallback
+        browser_storage.restore_auth_in_session()
 
 
 def is_signed_in() -> bool:
@@ -72,7 +118,7 @@ def get_current_refresh_token() -> str | None:
 
 def set_auth_tokens(user_id: str, email: str, access_token: str, refresh_token: str, 
                    role: str = "viewer", full_name: str | None = None, firm: str | None = None) -> None:
-    """Store auth tokens and user profile in session state."""
+    """Store auth tokens and user profile in session state AND browser storage."""
     st.session_state.legal_ai_user_id = user_id
     st.session_state.legal_ai_user_email = email
     st.session_state.legal_ai_access_token = access_token
@@ -80,6 +126,20 @@ def set_auth_tokens(user_id: str, email: str, access_token: str, refresh_token: 
     st.session_state.legal_ai_user_role = role
     st.session_state.legal_ai_user_full_name = full_name
     st.session_state.legal_ai_user_firm = firm
+    
+    # Also store in browser localStorage for persistence across page reloads
+    browser_storage.store_auth_in_browser(
+        user_id, email, access_token, refresh_token, role, full_name, firm
+    )
+    
+    # Set query params for immediate use (useful before localStorage is synced)
+    st.query_params.update({
+        "user_id": user_id,
+        "email": email,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "role": role,
+    })
 
 
 # ============================================================================
@@ -116,7 +176,9 @@ def request_magic_link(email: str, app_url: str = None) -> dict[str, str]:
         if app_url is None:
             app_url = config.get_app_base_url()
         
-        magic_link_url = f"{app_url}?token={magic_token}"
+        # Include both token and email in the magic link (URL-encode the email)
+        encoded_email = quote(email, safe='')
+        magic_link_url = f"{app_url}?token={magic_token}&email={encoded_email}"
         
         # Send email with magic link
         success = send_magic_link_email(email, magic_link_url)
@@ -171,8 +233,13 @@ def verify_magic_link_token(email: str, token: str) -> dict:
     try:
         ensure_db()
         
+        # Normalize email
+        email = (email or "").strip().lower()
+        
         # Validate magic link token
-        if not db.validate_magic_link(email, token):
+        is_valid = db.validate_magic_link(email, token)
+        if not is_valid:
+            print(f"DEBUG: Magic link validation failed for email={email}, token_length={len(token)}")
             return {"status": "error", "message": "Invalid or expired magic link"}
         
         # Create or get user (defaults to 'viewer' role for new users)
@@ -188,6 +255,8 @@ def verify_magic_link_token(email: str, token: str) -> dict:
         # Store refresh token in DB
         db.create_refresh_token(user_id, tokens["refresh_token"])
         
+        print(f"DEBUG: Magic link verified successfully for user={user_id}, email={email}")
+        
         return {
             "status": "success",
             "user_id": user_id,
@@ -199,6 +268,7 @@ def verify_magic_link_token(email: str, token: str) -> dict:
             "refresh_token": tokens["refresh_token"],
         }
     except Exception as e:
+        print(f"DEBUG: Exception in verify_magic_link_token: {str(e)}")
         return {"status": "error", "message": f"Error: {str(e)}"}
 
 
@@ -264,6 +334,12 @@ def sign_out() -> None:
         "selected_session_id",
     ):
         st.session_state.pop(key, None)
+    
+    # Clear from browser storage
+    browser_storage.clear_auth_from_browser()
+    
+    # Clear query params
+    st.query_params.clear()
 
 
 # ============================================================================

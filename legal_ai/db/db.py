@@ -498,6 +498,26 @@ def validate_magic_link(email: str, token: str) -> bool:
         ).scalar()
 
         if not result:
+            # Debug: Check why it failed
+            debug_result = conn.execute(
+                text(
+                    """
+                    SELECT link_id, expires_at, used_at, email, token_hash 
+                    FROM magic_links
+                    WHERE email = :email OR token_hash = :token_hash
+                    ORDER BY created_at DESC LIMIT 3
+                    """
+                ),
+                {"email": email, "token_hash": token_hash},
+            ).fetchall()
+            
+            if debug_result:
+                print(f"DEBUG: Found magic links for investigation:")
+                for row in debug_result:
+                    print(f"  - Email match: {row[3] == email}, Token match: {row[4] == token_hash}, Used: {row[2] is not None}, Expires: {row[1]}")
+            else:
+                print(f"DEBUG: No magic links found for email={email} or token_hash={token_hash[:20]}...")
+            
             return False
         
         # Mark as used

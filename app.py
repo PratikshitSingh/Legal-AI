@@ -23,6 +23,7 @@ from legal_ai.auth.auth import (
     start_new_chat,
     switch_to_session,
     verify_magic_link_token,
+    init_auth,
 )
 from legal_ai.db.db import get_session_messages, get_jurisdiction_tree, get_user_jurisdictions, update_user_jurisdictions
 from legal_ai.services.gateway import clear_chat_cache, route_query
@@ -67,13 +68,13 @@ def render_sign_in() -> None:
 
 def render_magic_link_verification(email: str, token: str) -> None:
     """Render magic link verification UI."""
-    ST.info("🔐 Verifying your sign-in link...")
+    ST.info(f"🔐 Verifying your sign-in link for {email}...")
     
     with ST.spinner("Checking your magic link..."):
         result = verify_magic_link_token(email, token)
     
     if result["status"] == "success":
-        # Set auth tokens in session state (including role and profile)
+        # Set auth tokens in session state AND query params (for browser storage sync)
         set_auth_tokens(
             user_id=result["user_id"],
             email=result["email"],
@@ -86,8 +87,7 @@ def render_magic_link_verification(email: str, token: str) -> None:
         ST.success(f"✅ Welcome, {result['email']}!")
         start_new_chat(result["user_id"])
         ST.balloons()
-        # Clear the token from URL to avoid re-triggering the verification flow
-        ST.query_params.clear()
+        # Rerun to let init_auth restore from query params and browser storage
         ST.rerun()
     else:
         error_msg = result.get('message', 'Invalid or expired link. Please request a new one.')
@@ -262,6 +262,9 @@ def create_chat(chat_id: str, session_id: str) -> None:
 if __name__ == "__main__":
     ST.set_page_config(page_title="Legal-AI", page_icon="⚖️")
     
+    # Initialize auth - restores session from browser storage or query params
+    init_auth()
+    
     # Initialize tracing (LangFuse)
     utils.setup_langfuse_tracing()
     
@@ -272,12 +275,22 @@ if __name__ == "__main__":
     # Handle magic link verification from URL query params
     # ========================================================================
     token = ST.query_params.get("token")
+    email_from_link = ST.query_params.get("email")
     
     if token:
-        # User clicked magic link - show email verification form
-        ST.divider()
-        render_magic_link_email_prompt(token)
-        ST.stop()
+        # User clicked magic link
+        if email_from_link:
+            # Email is in the link - verify directly
+            # Normalize email (strip and lowercase)
+            email_from_link = email_from_link.strip().lower()
+            ST.divider()
+            render_magic_link_verification(email_from_link, token)
+            ST.stop()
+        else:
+            # No email in link - ask user to enter it
+            ST.divider()
+            render_magic_link_email_prompt(token)
+            ST.stop()
 
     # ========================================================================
     # Check if user is signed in
