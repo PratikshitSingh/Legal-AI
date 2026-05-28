@@ -34,14 +34,18 @@ def init_auth() -> None:
     Restores auth from query parameters (from magic link) or browser storage.
     Should be called once at the start of each page.
     """
-    # Only initialize once per session to avoid redundant work
-    if st.session_state.get("_legal_ai_auth_initialized"):
+    # Allow re-checking browser state when session has no auth.
+    # If we've already initialized and a signed-in user exists, skip work.
+    if st.session_state.get("_legal_ai_auth_initialized") and st.session_state.get("legal_ai_user_id"):
         return
-    
+
     st.session_state._legal_ai_auth_initialized = True
-    
-    if browser_storage.restore_auth_in_session():
-        return
+
+    # If session has no user, attempt to restore from browser storage so
+    # new tabs will pick up an existing sign-in immediately.
+    if not st.session_state.get("legal_ai_user_id"):
+        if browser_storage.restore_auth_in_session():
+            return
 
     # Legacy fallback for one-time handoff parameters.
     query_params = st.query_params

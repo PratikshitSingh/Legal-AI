@@ -151,6 +151,29 @@ def load_article_content(file_name: str) -> str:
 # Global tracing state (initialized once at startup)
 _langfuse_callback = None
 _tracing_enabled = False
+_langfuse_host = None
+_langfuse_project_name = None
+_langfuse_status_message = "Langfuse tracing is not initialized."
+
+
+def _import_langfuse_callback_handler():
+    """Import Langfuse's CallbackHandler from whichever module path is available."""
+    import importlib
+
+    for module_name in (
+        "langfuse.callback",
+        "langfuse.callback_handler",
+        "langfuse",
+    ):
+        try:
+            module = importlib.import_module(module_name)
+            callback_handler = getattr(module, "CallbackHandler", None)
+            if callback_handler is not None:
+                return callback_handler
+        except ImportError:
+            continue
+
+    raise ImportError("Could not import Langfuse CallbackHandler")
 
 
 def _mask_sensitive_legal_content(text: str) -> str:
@@ -193,12 +216,15 @@ def setup_langfuse_tracing() -> None:
     - Supports tags, user context, and data masking
     - Fails gracefully if credentials missing (continues without tracing)
     """
-    global _langfuse_callback, _tracing_enabled
+    global _langfuse_callback, _tracing_enabled, _langfuse_host, _langfuse_project_name, _langfuse_status_message
     
     config = load_config()
     tracing_config = config.get("tracing", {})
     
     if not tracing_config.get("enabled", False):
+        _langfuse_host = None
+        _langfuse_project_name = tracing_config.get("project_name", "legal-ai")
+        _langfuse_status_message = "Langfuse tracing is disabled in config.yaml."
         print("[Tracing] LangFuse tracing is disabled in config.yaml")
         _tracing_enabled = False
         return
@@ -208,6 +234,11 @@ def setup_langfuse_tracing() -> None:
     host = OS.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
     
     if not public_key or not secret_key:
+        _langfuse_host = host
+        _langfuse_project_name = tracing_config.get("project_name", "legal-ai")
+        _langfuse_status_message = (
+            "Langfuse tracing is enabled in config, but credentials are missing."
+        )
         print(
             "[Tracing] LangFuse enabled but credentials not found. "
             "Set LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY in .env to enable tracing. "
@@ -217,9 +248,11 @@ def setup_langfuse_tracing() -> None:
         return
     
     try:
-        from langfuse.callback import CallbackHandler
-        
+        CallbackHandler = _import_langfuse_callback_handler()
+
         project_name = tracing_config.get("project_name", "legal-ai")
+        _langfuse_host = host
+        _langfuse_project_name = project_name
         
         _langfuse_callback = CallbackHandler(
             public_key=public_key,
@@ -228,18 +261,37 @@ def setup_langfuse_tracing() -> None:
         )
         
         _tracing_enabled = True
+        _langfuse_status_message = f"Langfuse tracing enabled · Host: {host} · Project: {project_name}"
         print(
-            f"[Tracing] LangFuse enabled · "
-            f"Host: {host} · Project: {project_name}"
+            f"[Tracing] {_langfuse_status_message}"
         )
     except ImportError as e:
+        _langfuse_host = host
+        _langfuse_project_name = tracing_config.get("project_name", "legal-ai")
+        _langfuse_status_message = (
+            "Langfuse tracing is enabled in config, but the langfuse package is not installed."
+        )
         print(
             f"[Tracing] langfuse not installed. Install with: pip install langfuse"
         )
         _tracing_enabled = False
     except Exception as e:
+        _langfuse_host = host
+        _langfuse_project_name = tracing_config.get("project_name", "legal-ai")
+        _langfuse_status_message = f"Langfuse tracing failed to initialize: {e}"
         print(f"[Tracing] Failed to initialize LangFuse: {e}")
         _tracing_enabled = False
+
+
+def get_langfuse_tracing_status() -> dict:
+    """Return the current Langfuse tracing state for UI and diagnostics."""
+    return {
+        "enabled": _tracing_enabled and _langfuse_callback is not None,
+        "configured": _langfuse_callback is not None,
+        "host": _langfuse_host,
+        "project_name": _langfuse_project_name,
+        "message": _langfuse_status_message,
+    }
 
 
 def get_langfuse_callback(
@@ -276,8 +328,9 @@ def get_langfuse_callback(
     
     try:
         # Create a new handler with context for this specific trace
-        from langfuse.callback import CallbackHandler
         import os as os_module
+
+        CallbackHandler = _import_langfuse_callback_handler()
         
         handler = CallbackHandler(
             public_key=os_module.getenv("LANGFUSE_PUBLIC_KEY"),

@@ -42,23 +42,53 @@ def _serialize_auth_data(
 def _cookie_script(cookie_value: str, max_age_seconds: int) -> str:
     cookie_name = quote(AUTH_COOKIE_NAME, safe="")
     encoded_value = quote(cookie_value, safe="")
+    # Write cookie, then broadcast change via localStorage and BroadcastChannel so other tabs update immediately
     return f"""
     <script>
         (function() {{
-            const cookieName = decodeURIComponent("{cookie_name}");
-            const cookieValue = decodeURIComponent("{encoded_value}");
-            document.cookie = cookieName + '=' + cookieValue + '; Path=/; Max-Age={max_age_seconds}; SameSite=Lax' + (window.location.protocol === 'https:' ? '; Secure' : '');
+            try {{
+                const cookieName = decodeURIComponent("{cookie_name}");
+                const cookieValue = decodeURIComponent("{encoded_value}");
+                document.cookie = cookieName + '=' + cookieValue + '; Path=/; Max-Age={max_age_seconds}; SameSite=Lax' + (window.location.protocol === 'https:' ? '; Secure' : '');
+
+                // localStorage-based sync (triggers storage event in other tabs)
+                try {{
+                    const payload = JSON.stringify({{ type: 'set', value: cookieValue, ts: Date.now() }});
+                    localStorage.setItem('legal_ai_auth_sync', payload);
+                }} catch (e) {{ /* ignore localStorage errors */ }}
+
+                // BroadcastChannel for modern browsers (optional, but more immediate)
+                try {{
+                    const bc = new BroadcastChannel('legal_ai_auth');
+                    bc.postMessage({{ type: 'set', value: cookieValue, ts: Date.now() }});
+                    bc.close();
+                }} catch (e) {{ /* ignore BroadcastChannel errors */ }}
+            }} catch (e) {{ console.error(e); }}
         }})();
     </script>
     """
 
 
 def _clear_cookie_script() -> str:
+    # Clear cookie and broadcast a clear event so other tabs can react
     return f"""
     <script>
         (function() {{
-            const cookieName = "{AUTH_COOKIE_NAME}";
-            document.cookie = cookieName + '=; Path=/; Max-Age=0; SameSite=Lax' + (window.location.protocol === 'https:' ? '; Secure' : '');
+            try {{
+                const cookieName = "{AUTH_COOKIE_NAME}";
+                document.cookie = cookieName + '=; Path=/; Max-Age=0; SameSite=Lax' + (window.location.protocol === 'https:' ? '; Secure' : '');
+
+                try {{
+                    const payload = JSON.stringify({{ type: 'clear', ts: Date.now() }});
+                    localStorage.setItem('legal_ai_auth_sync', payload);
+                }} catch (e) {{ /* ignore localStorage errors */ }}
+
+                try {{
+                    const bc = new BroadcastChannel('legal_ai_auth');
+                    bc.postMessage({{ type: 'clear', ts: Date.now() }});
+                    bc.close();
+                }} catch (e) {{ /* ignore BroadcastChannel errors */ }}
+            }} catch (e) {{ console.error(e); }}
         }})();
     </script>
     """
@@ -163,3 +193,50 @@ def restore_auth_in_session() -> bool:
         return True
 
     return False
+
+
+def inject_auth_sync_listener() -> None:
+    """Inject a small client-side listener that reloads the page when auth changes occur in other tabs.
+
+    This listens for `storage` events (localStorage) and BroadcastChannel messages. When an
+    auth change is observed it performs a `window.location.reload()` so Streamlit re-runs and
+    `init_auth()` can restore the updated cookie state.
+    """
+    script = f"""
+    <script>
+    (function() {{
+        try {{
+            window.addEventListener('storage', function(e) {{
+                if (!e.key) return;
+                if (e.key === 'legal_ai_auth_sync') {{
+                    try {{
+                        const data = JSON.parse(e.newValue || e.oldValue || null);
+                        if (data && (data.type === 'set' || data.type === 'clear')) {{
+                            // Reload to let Streamlit re-run and pick up cookie/localStorage changes
+                            window.location.reload();
+                        }}
+                    }} catch (err) {{ /* ignore parse errors */ }}
+                }}
+            }});
+
+            try {{
+                const bc = new BroadcastChannel('legal_ai_auth');
+                bc.onmessage = function(ev) {{
+                    try {{
+                        const data = ev.data;
+                        if (data && (data.type === 'set' || data.type === 'clear')) {{
+                            window.location.reload();
+                        }}
+                    }} catch (err) {{ /* ignore */ }}
+                }};
+            }} catch (e) {{ /* BroadcastChannel not supported */ }}
+        }} catch (e) {{ console.error(e); }}
+    }})();
+    </script>
+    """
+
+    try:
+        html(script, height=0)
+    except Exception:
+        # If html injection fails for any reason, fail silently; feature is optional
+        pass

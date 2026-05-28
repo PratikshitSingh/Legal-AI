@@ -25,6 +25,7 @@ from legal_ai.auth.auth import (
     verify_magic_link_token,
     init_auth,
 )
+from legal_ai.auth import browser_storage
 from legal_ai.db.db import get_session_messages, get_jurisdiction_tree, get_user_jurisdictions, update_user_jurisdictions
 from legal_ai.services.gateway import clear_chat_cache, route_query
 
@@ -265,12 +266,24 @@ if __name__ == "__main__":
     
     # Initialize auth - restores session from browser storage or query params
     init_auth()
+
+    # Inject cross-tab auth sync listener so other tabs reload when auth changes
+    try:
+        browser_storage.inject_auth_sync_listener()
+    except Exception:
+        pass
     
     # Initialize tracing (LangFuse)
     utils.setup_langfuse_tracing()
     
     ST.title("Legal-AI")
     ST.caption("EU AI Act RAG assistant — multi-turn conversational retrieval")
+
+    tracing_status = utils.get_langfuse_tracing_status()
+    if tracing_status["enabled"]:
+        ST.success(tracing_status["message"])
+    else:
+        ST.info(tracing_status["message"])
 
     # ========================================================================
     # Handle magic link verification from URL query params
