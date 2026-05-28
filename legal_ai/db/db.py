@@ -7,6 +7,7 @@ from functools import lru_cache
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 
 load_dotenv()
 
@@ -17,7 +18,29 @@ def get_engine():
     url = os.environ.get("NEON_DB_DATABASE_URL")
     if not url:
         raise ValueError("Set NEON_DB_DATABASE_URL in .env")
-    return create_engine(url)
+    return create_engine(
+        url,
+        pool_pre_ping=True,
+        pool_recycle=int(os.environ.get("DB_POOL_RECYCLE_SECONDS", 300)),
+        connect_args={
+            "connect_timeout": int(os.environ.get("DB_CONNECT_TIMEOUT_SECONDS", 10)),
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+        },
+    )
+
+
+def _retry_after_operational_error(fn, *, retries: int = 1):
+    """Retry once after disposing pooled connections on transient DB disconnects."""
+    try:
+        return fn()
+    except OperationalError:
+        if retries <= 0:
+            raise
+        get_engine().dispose()
+        return _retry_after_operational_error(fn, retries=retries - 1)
 
 
 def init_db() -> None:
@@ -572,38 +595,44 @@ def create_refresh_token(user_id: str, token: str, expires_in_days: int | None =
 def validate_refresh_token(user_id: str, token: str) -> bool:
     """Validate refresh token for a user."""
     token_hash = _hash_token(token)
-    engine = get_engine()
-    with engine.connect() as conn:
-        result = conn.execute(
-            text(
-                """
-                SELECT token_id FROM refresh_tokens
-                WHERE user_id = CAST(:user_id AS UUID)
-                  AND token_hash = :token_hash
-                  AND expires_at > NOW()
-                  AND revoked_at IS NULL
-                """
-            ),
-            {"user_id": user_id, "token_hash": token_hash},
-        ).scalar()
+    def _run_query():
+        engine = get_engine()
+        with engine.connect() as conn:
+            return conn.execute(
+                text(
+                    """
+                    SELECT token_id FROM refresh_tokens
+                    WHERE user_id = CAST(:user_id AS UUID)
+                      AND token_hash = :token_hash
+                      AND expires_at > NOW()
+                      AND revoked_at IS NULL
+                    """
+                ),
+                {"user_id": user_id, "token_hash": token_hash},
+            ).scalar()
+
+    result = _retry_after_operational_error(_run_query)
     
     return bool(result)
 
 
 def revoke_refresh_tokens(user_id: str) -> None:
     """Revoke all refresh tokens for a user (on sign-out)."""
-    engine = get_engine()
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                """
-                UPDATE refresh_tokens
-                SET revoked_at = NOW()
-                WHERE user_id = CAST(:user_id AS UUID) AND revoked_at IS NULL
-                """
-            ),
-            {"user_id": user_id},
-        )
+    def _run_update():
+        engine = get_engine()
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    UPDATE refresh_tokens
+                    SET revoked_at = NOW()
+                    WHERE user_id = CAST(:user_id AS UUID) AND revoked_at IS NULL
+                    """
+                ),
+                {"user_id": user_id},
+            )
+
+    _retry_after_operational_error(_run_update)
 
 
 # ============================================================================

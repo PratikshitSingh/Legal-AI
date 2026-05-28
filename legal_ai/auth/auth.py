@@ -282,13 +282,16 @@ def refresh_access_token_if_needed() -> bool:
         return True  # Still valid
 
     # Try to refresh using refresh token
-    if db.validate_refresh_token(user_id, refresh_token):
-        new_access_token = jwt_utils.create_access_token(user_id)
-        st.session_state.legal_ai_access_token = new_access_token
-        return True
-    else:
-        # Refresh token invalid or expired
-        return False
+    try:
+        if db.validate_refresh_token(user_id, refresh_token):
+            new_access_token = jwt_utils.create_access_token(user_id)
+            st.session_state.legal_ai_access_token = new_access_token
+            return True
+    except Exception as exc:
+        print(f"Error validating refresh token: {exc}")
+
+    # Refresh token invalid/expired or DB unavailable
+    return False
 
 
 # ============================================================================
