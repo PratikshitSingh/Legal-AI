@@ -642,14 +642,32 @@ def get_user_sessions(user_id: str, limit: int = 50) -> list[dict]:
             text(
                 """
                 SELECT 
-                    session_id::text,
-                    user_id::text,
-                    display_user,
-                    created_at,
-                    last_seen_at
-                FROM sessions
-                WHERE user_id = CAST(:user_id AS UUID)
-                ORDER BY last_seen_at DESC
+                    s.session_id::text,
+                    s.user_id::text,
+                    s.display_user,
+                    s.created_at,
+                    s.last_seen_at,
+                    COALESCE(user_last.content, any_last.content) AS last_message,
+                    COALESCE(user_last.created_at, any_last.created_at) AS last_message_at
+                FROM sessions s
+                LEFT JOIN LATERAL (
+                    SELECT content, created_at
+                    FROM audit_log
+                    WHERE session_id = s.session_id
+                      AND role = 'user'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) AS user_last ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT content, created_at
+                    FROM audit_log
+                    WHERE session_id = s.session_id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) AS any_last ON TRUE
+                WHERE s.user_id = CAST(:user_id AS UUID)
+                  AND any_last.created_at IS NOT NULL
+                ORDER BY COALESCE(user_last.created_at, any_last.created_at) DESC, s.last_seen_at DESC
                 LIMIT :limit
                 """
             ),

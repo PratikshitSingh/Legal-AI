@@ -284,10 +284,23 @@ def test_session_management(user_id: str):
         assert retrieved_user_id == user_id, f"User ID mismatch: {retrieved_user_id} != {user_id}"
         print(f"  ✓ Session user_id verified: {retrieved_user_id}")
         
-        # List user's sessions
-        sessions = db.get_user_sessions(user_id, limit=10)
-        assert any(s["session_id"] == session_id for s in sessions), "Session not found in user's sessions"
-        print(f"  ✓ Session listed in user's sessions (total: {len(sessions)})")
+        # Empty sessions are hidden from chat list previews.
+        sessions = db.get_user_sessions(user_id, limit=50)
+        assert not any(s["session_id"] == session_id for s in sessions), "Empty session should be hidden"
+        print("  ✓ Empty session hidden from user's sessions list")
+
+        # Add messages and verify latest user message is used as preview title.
+        db.add_session_message(session_id, "assistant", "Hello, how can I help?")
+        db.add_session_message(session_id, "user", "First user question")
+        db.add_session_message(session_id, "assistant", "First answer")
+        db.add_session_message(session_id, "user", "Second user question")
+
+        sessions = db.get_user_sessions(user_id, limit=50)
+        matching = [s for s in sessions if s["session_id"] == session_id]
+        assert matching, "Session with messages not found in user's sessions"
+        assert matching[0]["last_message"] == "Second user question", "Latest user message not used as preview"
+        assert matching[0]["last_message_at"] is not None, "last_message_at should be populated"
+        print(f"  ✓ Session listed with latest user preview: {matching[0]['last_message']}")
         
         return True, session_id
     except Exception as e:

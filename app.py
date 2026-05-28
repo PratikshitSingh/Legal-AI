@@ -204,7 +204,7 @@ def render_sidebar(session_id: str) -> None:
 
         for chat in past:
             sid = chat["session_id"]
-            preview = (chat.get("last_message") or "Empty chat")[:60]
+            preview = ((chat.get("last_message") or "").strip() or "Untitled chat")[:60]
             label = f"{preview}…" if len(preview) >= 60 else preview
             is_active = sid == session_id
             if ST.button(
