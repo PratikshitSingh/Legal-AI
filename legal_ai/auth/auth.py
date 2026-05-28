@@ -40,10 +40,12 @@ def init_auth() -> None:
     
     st.session_state._legal_ai_auth_initialized = True
     
-    # Try to restore from query parameters first (from magic link verification)
+    if browser_storage.restore_auth_in_session():
+        return
+
+    # Legacy fallback for one-time handoff parameters.
     query_params = st.query_params
     if all(k in query_params for k in ["user_id", "access_token", "email"]):
-        # Restore from query params (immediate from magic link)
         st.session_state.legal_ai_user_id = query_params.get("user_id")
         st.session_state.legal_ai_user_email = query_params.get("email")
         st.session_state.legal_ai_access_token = query_params.get("access_token")
@@ -51,8 +53,7 @@ def init_auth() -> None:
         st.session_state.legal_ai_user_role = query_params.get("role", "viewer")
         st.session_state.legal_ai_user_full_name = query_params.get("full_name")
         st.session_state.legal_ai_user_firm = query_params.get("firm")
-        
-        # Also save to browser storage for persistence
+
         browser_storage.store_auth_in_browser(
             st.session_state.legal_ai_user_id,
             st.session_state.legal_ai_user_email,
@@ -62,14 +63,8 @@ def init_auth() -> None:
             st.session_state.legal_ai_user_full_name,
             st.session_state.legal_ai_user_firm,
         )
-        
-        # Clear query params after restoring to prevent re-verification
+
         st.query_params.clear()
-    
-    # If not in query params, check if already in session state
-    elif not st.session_state.get("legal_ai_user_id"):
-        # Session state is empty, try to restore from browser storage fallback
-        browser_storage.restore_auth_in_session()
 
 
 def is_signed_in() -> bool:
@@ -118,7 +113,7 @@ def get_current_refresh_token() -> str | None:
 
 def set_auth_tokens(user_id: str, email: str, access_token: str, refresh_token: str, 
                    role: str = "viewer", full_name: str | None = None, firm: str | None = None) -> None:
-    """Store auth tokens and user profile in session state AND browser storage."""
+    """Store auth tokens and user profile in session state and browser cookie."""
     st.session_state.legal_ai_user_id = user_id
     st.session_state.legal_ai_user_email = email
     st.session_state.legal_ai_access_token = access_token
@@ -131,15 +126,6 @@ def set_auth_tokens(user_id: str, email: str, access_token: str, refresh_token: 
     browser_storage.store_auth_in_browser(
         user_id, email, access_token, refresh_token, role, full_name, firm
     )
-    
-    # Set query params for immediate use (useful before localStorage is synced)
-    st.query_params.update({
-        "user_id": user_id,
-        "email": email,
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "role": role,
-    })
 
 
 # ============================================================================

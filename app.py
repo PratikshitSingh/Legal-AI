@@ -74,7 +74,7 @@ def render_magic_link_verification(email: str, token: str) -> None:
         result = verify_magic_link_token(email, token)
     
     if result["status"] == "success":
-        # Set auth tokens in session state AND query params (for browser storage sync)
+        # Store the authenticated session and persist it in the browser cookie.
         set_auth_tokens(
             user_id=result["user_id"],
             email=result["email"],
@@ -84,10 +84,11 @@ def render_magic_link_verification(email: str, token: str) -> None:
             full_name=result.get("full_name"),
             firm=result.get("firm"),
         )
+        ST.query_params.clear()
         ST.success(f"✅ Welcome, {result['email']}!")
         start_new_chat(result["user_id"])
         ST.balloons()
-        # Rerun to let init_auth restore from query params and browser storage
+        # Rerun so the authenticated app state renders without the verification branch.
         ST.rerun()
     else:
         error_msg = result.get('message', 'Invalid or expired link. Please request a new one.')
@@ -278,8 +279,9 @@ if __name__ == "__main__":
     email_from_link = ST.query_params.get("email")
     
     if token:
-        # User clicked magic link
-        if email_from_link:
+        if is_signed_in():
+            ST.query_params.clear()
+        elif email_from_link:
             # Email is in the link - verify directly
             # Normalize email (strip and lowercase)
             email_from_link = email_from_link.strip().lower()
