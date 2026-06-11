@@ -69,6 +69,13 @@ def render_sign_in() -> None:
 
 def render_magic_link_verification(email: str, token: str) -> None:
     """Render magic link verification UI."""
+    # Avoid re-validating already-consumed token when this run is a duplicate
+    # (browser prefetch, reloads, or stale verification URL).
+    verified_marker = f"{email}:{token}"
+    if is_signed_in() and verified_marker == ST.session_state.get("_legal_ai_last_verified_magic_link"):
+        ST.query_params.clear()
+        ST.rerun()
+
     ST.info(f"🔐 Verifying your sign-in link for {email}...")
     
     with ST.spinner("Checking your magic link..."):
@@ -85,13 +92,31 @@ def render_magic_link_verification(email: str, token: str) -> None:
             full_name=result.get("full_name"),
             firm=result.get("firm"),
         )
+        ST.session_state._legal_ai_last_verified_magic_link = verified_marker
         ST.query_params.clear()
         ST.success(f"✅ Welcome, {result['email']}!")
         start_new_chat(result["user_id"])
         ST.balloons()
-        # Rerun so the authenticated app state renders without the verification branch.
-        ST.rerun()
+        # Do a client-side redirect shortly after success so the cookie write from
+        # `set_auth_tokens` has time to persist before the app loads again.
+        ST.markdown(
+            """
+            <script>
+                setTimeout(function() {
+                    window.location.href = '/';
+                }, 250);
+            </script>
+            """,
+            unsafe_allow_html=True,
+        )
+        ST.stop()
     else:
+        # If auth is already present, treat this as a stale/duplicate verify attempt
+        # and continue into the signed-in app instead of showing a false negative.
+        if is_signed_in():
+            ST.query_params.clear()
+            ST.rerun()
+
         error_msg = result.get('message', 'Invalid or expired link. Please request a new one.')
         ST.error(f"❌ {error_msg}")
         ST.divider()

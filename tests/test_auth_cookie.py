@@ -31,6 +31,10 @@ class RerunCalled(RuntimeError):
     pass
 
 
+class StopCalled(RuntimeError):
+    pass
+
+
 @pytest.fixture()
 def fake_auth_state(monkeypatch):
     session_state = FakeSessionState()
@@ -140,11 +144,37 @@ def test_magic_link_success_clears_query_params(monkeypatch):
     monkeypatch.setattr(app.ST, "info", lambda *args, **kwargs: None)
     monkeypatch.setattr(app.ST, "success", lambda *args, **kwargs: None)
     monkeypatch.setattr(app.ST, "balloons", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app.ST, "markdown", lambda *args, **kwargs: None)
     monkeypatch.setattr(app.ST, "divider", lambda *args, **kwargs: None)
     monkeypatch.setattr(app.ST, "spinner", lambda *args, **kwargs: DummySpinner())
+    monkeypatch.setattr(app.ST, "stop", lambda: (_ for _ in ()).throw(StopCalled()))
+
+    with pytest.raises(StopCalled):
+        app.render_magic_link_verification("magic@example.com", "magic-token")
+
+    assert query_params == {}
+
+
+def test_magic_link_error_while_already_signed_in_reruns_without_error(monkeypatch):
+    session_state = FakeSessionState()
+    query_params = {"token": "stale-token", "email": "magic@example.com"}
+    captured = {"error_called": False}
+
+    monkeypatch.setattr(app.ST, "session_state", session_state, raising=False)
+    monkeypatch.setattr(app.ST, "query_params", query_params, raising=False)
+    monkeypatch.setattr(app, "verify_magic_link_token", lambda email, token: {
+        "status": "error",
+        "message": "Invalid or expired magic link",
+    })
+    monkeypatch.setattr(app, "is_signed_in", lambda: True)
+    monkeypatch.setattr(app.ST, "info", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app.ST, "divider", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app.ST, "spinner", lambda *args, **kwargs: DummySpinner())
+    monkeypatch.setattr(app.ST, "error", lambda *args, **kwargs: captured.update({"error_called": True}))
     monkeypatch.setattr(app.ST, "rerun", lambda: (_ for _ in ()).throw(RerunCalled()))
 
     with pytest.raises(RerunCalled):
-        app.render_magic_link_verification("magic@example.com", "magic-token")
+        app.render_magic_link_verification("magic@example.com", "stale-token")
 
+    assert captured["error_called"] is False
     assert query_params == {}

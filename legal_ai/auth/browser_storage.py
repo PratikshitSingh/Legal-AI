@@ -12,6 +12,23 @@ from . import jwt_utils
 AUTH_COOKIE_NAME = "legal_ai_auth"
 
 
+def _inject_html(script: str) -> None:
+    """Inject HTML/JS into the page.
+
+    Prefer `st.html` when available (newer Streamlit) because it runs in the
+    main page context. Fall back to `components.html` for compatibility.
+    """
+    try:
+        render_html = getattr(st, "html", None)
+        if callable(render_html):
+            render_html(script)
+            return
+    except Exception:
+        pass
+
+    html(script, height=0)
+
+
 def _auth_cookie_max_age_seconds() -> int:
     return jwt_utils.get_refresh_token_expiry_days() * 24 * 60 * 60
 
@@ -133,7 +150,7 @@ def store_auth_in_browser(user_id: str, email: str, access_token: str,
         full_name=full_name,
         firm=firm,
     )
-    html(_cookie_script(auth_value, _auth_cookie_max_age_seconds()), height=0)
+    _inject_html(_cookie_script(auth_value, _auth_cookie_max_age_seconds()))
 
 
 def restore_auth_from_browser() -> dict | None:
@@ -143,7 +160,7 @@ def restore_auth_from_browser() -> dict | None:
 
 def clear_auth_from_browser() -> None:
     """Clear auth tokens from the browser cookie."""
-    html(_clear_cookie_script(), height=0)
+    _inject_html(_clear_cookie_script())
 
 
 def get_auth_from_session_or_query() -> dict | None:
@@ -236,7 +253,7 @@ def inject_auth_sync_listener() -> None:
     """
 
     try:
-        html(script, height=0)
+        _inject_html(script)
     except Exception:
         # If html injection fails for any reason, fail silently; feature is optional
         pass
