@@ -157,23 +157,41 @@ _langfuse_status_message = "Langfuse tracing is not initialized."
 
 
 def _import_langfuse_callback_handler():
-    """Import Langfuse's CallbackHandler from whichever module path is available."""
+    """Import Langfuse's CallbackHandler from whichever module path is available.
+    
+    Langfuse versions have different structures:
+    - Older versions (< 2.0): langfuse.callback.CallbackHandler
+    - 2.0-4.x: langfuse.callback_handler.CallbackHandler or langfuse.CallbackHandler
+    - Newer (4.7+): langfuse.langchain.CallbackHandler
+    """
     import importlib
+    import sys
 
-    for module_name in (
-        "langfuse.callback",
-        "langfuse.callback_handler",
-        "langfuse",
-    ):
+    # Try different import paths for different langfuse versions
+    paths_to_try = [
+        ("langfuse.langchain", "CallbackHandler"),  # 4.7+ LangChain integration
+        ("langfuse.callback", "CallbackHandler"),   # Older versions
+        ("langfuse.callback_handler", "CallbackHandler"),  # Mid versions
+        ("langfuse", "CallbackHandler"),  # Some versions expose it at top level
+    ]
+    
+    for module_name, class_name in paths_to_try:
         try:
             module = importlib.import_module(module_name)
-            callback_handler = getattr(module, "CallbackHandler", None)
-            if callback_handler is not None:
-                return callback_handler
+            handler = getattr(module, class_name, None)
+            if handler is not None:
+                print(f"[Tracing] Imported CallbackHandler from {module_name}.{class_name}")
+                return handler
         except ImportError:
             continue
+        except Exception as e:
+            print(f"[Tracing] Error checking {module_name}: {e}")
+            continue
 
-    raise ImportError("Could not import Langfuse CallbackHandler")
+    raise ImportError(
+        "langfuse is installed but CallbackHandler could not be imported. "
+        "Tried paths: langfuse.langchain, langfuse.callback, langfuse.callback_handler, langfuse"
+    )
 
 
 def _mask_sensitive_legal_content(text: str) -> str:
@@ -254,11 +272,19 @@ def setup_langfuse_tracing() -> None:
         _langfuse_host = host
         _langfuse_project_name = project_name
         
-        _langfuse_callback = CallbackHandler(
-            public_key=public_key,
-            secret_key=secret_key,
-            host=host,
-        )
+        # Try new API (langfuse 4.7+): only public_key
+        # Fall back to old API if that fails: public_key, secret_key, host
+        try:
+            _langfuse_callback = CallbackHandler(public_key=public_key)
+            print("[Tracing] Using langfuse 4.7+ API (public_key only)")
+        except TypeError:
+            # Fall back to older API
+            _langfuse_callback = CallbackHandler(
+                public_key=public_key,
+                secret_key=secret_key,
+                host=host,
+            )
+            print("[Tracing] Using legacy langfuse API (public_key, secret_key, host)")
         
         _tracing_enabled = True
         _langfuse_status_message = f"Langfuse tracing enabled · Host: {host} · Project: {project_name}"
@@ -268,18 +294,18 @@ def setup_langfuse_tracing() -> None:
     except ImportError as e:
         _langfuse_host = host
         _langfuse_project_name = tracing_config.get("project_name", "legal-ai")
-        _langfuse_status_message = (
-            "Langfuse tracing is enabled in config, but the langfuse package is not installed."
-        )
-        print(
-            f"[Tracing] langfuse not installed. Install with: pip install langfuse"
-        )
+        error_msg = str(e)
+        
+        _langfuse_status_message = f"Langfuse import failed: {error_msg}"
+        print(f"[Tracing] ERROR: {error_msg}")
         _tracing_enabled = False
     except Exception as e:
         _langfuse_host = host
         _langfuse_project_name = tracing_config.get("project_name", "legal-ai")
         _langfuse_status_message = f"Langfuse tracing failed to initialize: {e}"
-        print(f"[Tracing] Failed to initialize LangFuse: {e}")
+        print(f"[Tracing] ERROR initializing LangFuse: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         _tracing_enabled = False
 
 
