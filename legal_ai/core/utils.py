@@ -98,11 +98,16 @@ def load_articles(file_name: str) -> list:
             except JS.JSONDecodeError:
                 print("File exists but is not valid JSON. Returning empty object.")
     else:
-        with open(file_name, "w", encoding="utf-8") as file:
-            JS.dump("[{}]", file)
-        print(f"File '{file_name}' did not exist and was created.")
+        # Create the parent directory BEFORE creating the file, and write an
+        # actual empty JSON list (not the string "[{}]", which json-encodes to
+        # a quoted string and breaks subsequent loads).
+        parent_dir = OS.path.dirname(file_name)
+        if parent_dir:
+            OS.makedirs(parent_dir, exist_ok=True)
         OS.makedirs(ARTICLES_FOLDER, exist_ok=True)
-        print("'articles' directory was created")
+        with open(file_name, "w", encoding="utf-8") as file:
+            JS.dump([], file)
+        print(f"File '{file_name}' did not exist and was created.")
 
     return result
 
@@ -351,23 +356,34 @@ def get_langfuse_callback(
     """
     if not _tracing_enabled or _langfuse_callback is None:
         return []
-    
+
     try:
         # Create a new handler with context for this specific trace
         import os as os_module
 
         CallbackHandler = _import_langfuse_callback_handler()
-        
-        handler = CallbackHandler(
-            public_key=os_module.getenv("LANGFUSE_PUBLIC_KEY"),
-            secret_key=os_module.getenv("LANGFUSE_SECRET_KEY"),
-            host=os_module.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"),
-            session_id=session_id,
-            user_id=user_id,
-            trace_name=trace_name,
-            tags=tags or [],
-        )
-        
+
+        try:
+            # Legacy API (langfuse < 3): handler takes credentials + trace context
+            handler = CallbackHandler(
+                public_key=os_module.getenv("LANGFUSE_PUBLIC_KEY"),
+                secret_key=os_module.getenv("LANGFUSE_SECRET_KEY"),
+                host=os_module.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+                session_id=session_id,
+                user_id=user_id,
+                trace_name=trace_name,
+                tags=tags or [],
+            )
+        except TypeError:
+            # New API (langfuse 3/4.x): handler takes no trace-context kwargs.
+            # Credentials come from env vars; session/user/tags are passed via
+            # the chain's config metadata (langfuse_session_id etc.) — see
+            # LegalChat.ask, which adds them to config["metadata"].
+            try:
+                handler = CallbackHandler(public_key=os_module.getenv("LANGFUSE_PUBLIC_KEY"))
+            except TypeError:
+                handler = CallbackHandler()
+
         return [handler]
     except Exception as e:
         print(f"[Tracing] Failed to create callback handler: {e}")

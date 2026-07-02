@@ -2,8 +2,8 @@
 
 import streamlit as st
 
-from legal_ai.auth.auth import is_signed_in, get_current_user_id, get_current_access_token, init_auth
-from legal_ai.db.db import get_jurisdiction_tree, get_documents_by_jurisdiction
+from legal_ai.auth.auth import is_signed_in, init_auth
+from legal_ai.db.db import get_jurisdiction_tree
 from legal_ai.services.jurisdiction_retriever import JurisdictionAwareRetriever
 
 # Initialize auth - restores session from browser storage

@@ -74,13 +74,33 @@ def test_init_auth_restores_from_browser_cookie(fake_auth_state, monkeypatch):
     session_state, _query_params = fake_auth_state
 
     monkeypatch.setattr(
-        auth.browser_storage,
+        browser_storage,
         "get_auth_from_browser",
         lambda: {
             "user_id": "user-456",
             "email": "cookie@example.com",
             "access_token": "cookie-access",
             "refresh_token": "cookie-refresh",
+            "role": "viewer",
+            "full_name": "Cookie User",
+            "firm": "Cookie Firm",
+        },
+    )
+    # Cookie payloads are untrusted: restore validates the token signature and
+    # loads the role from the DB.
+    monkeypatch.setattr(
+        browser_storage.jwt_utils,
+        "get_user_id_from_token_signature",
+        lambda token: "user-456" if token == "cookie-access" else None,
+    )
+    from legal_ai.db import db as db_module
+
+    monkeypatch.setattr(
+        db_module,
+        "get_user_by_id",
+        lambda user_id: {
+            "user_id": user_id,
+            "email": "cookie@example.com",
             "role": "editor",
             "full_name": "Cookie User",
             "firm": "Cookie Firm",
@@ -93,6 +113,41 @@ def test_init_auth_restores_from_browser_cookie(fake_auth_state, monkeypatch):
     assert session_state["legal_ai_user_email"] == "cookie@example.com"
     assert session_state["legal_ai_access_token"] == "cookie-access"
     assert session_state["legal_ai_user_role"] == "editor"
+
+
+def test_init_auth_rejects_forged_cookie(fake_auth_state, monkeypatch):
+    """A cookie with a tampered token or user_id must NOT sign the user in."""
+    session_state, _query_params = fake_auth_state
+
+    monkeypatch.setattr(
+        browser_storage,
+        "get_auth_from_browser",
+        lambda: {
+            "user_id": "victim-user",
+            "email": "attacker@example.com",
+            "access_token": "forged-token",
+            "refresh_token": "whatever",
+            "role": "admin",  # attacker-chosen role must be ignored
+            "full_name": None,
+            "firm": None,
+        },
+    )
+    # Signature validation fails for the forged token
+    monkeypatch.setattr(
+        browser_storage.jwt_utils,
+        "get_user_id_from_token_signature",
+        lambda token: None,
+    )
+    cleared = {}
+    monkeypatch.setattr(
+        browser_storage, "clear_auth_from_browser", lambda: cleared.update({"called": True})
+    )
+
+    auth.init_auth()
+
+    assert "legal_ai_user_id" not in session_state
+    assert session_state.get("legal_ai_user_role") is None
+    assert cleared.get("called") is True
 
 
 def test_sign_out_clears_browser_cookie(fake_auth_state, monkeypatch):
@@ -144,7 +199,7 @@ def test_magic_link_success_clears_query_params(monkeypatch):
     monkeypatch.setattr(app.ST, "info", lambda *args, **kwargs: None)
     monkeypatch.setattr(app.ST, "success", lambda *args, **kwargs: None)
     monkeypatch.setattr(app.ST, "balloons", lambda *args, **kwargs: None)
-    monkeypatch.setattr(app.ST, "markdown", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app, "components_html", lambda *args, **kwargs: None)
     monkeypatch.setattr(app.ST, "divider", lambda *args, **kwargs: None)
     monkeypatch.setattr(app.ST, "spinner", lambda *args, **kwargs: DummySpinner())
     monkeypatch.setattr(app.ST, "stop", lambda: (_ for _ in ()).throw(StopCalled()))

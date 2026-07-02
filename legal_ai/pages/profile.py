@@ -6,6 +6,9 @@ from legal_ai.auth import auth
 from legal_ai.db import db
 from legal_ai.auth import rbac
 
+# Initialize auth - restores session from browser storage
+auth.init_auth()
+
 # Configure page
 st.set_page_config(page_title="Profile", page_icon="👤", layout="wide")
 

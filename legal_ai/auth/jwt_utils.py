@@ -91,6 +91,31 @@ def validate_access_token(token: str) -> str:
         raise jwt.InvalidTokenError(f"Invalid token: {e}")
 
 
+def get_user_id_from_token_signature(token: str) -> str | None:
+    """Extract user_id from a token with a VALID SIGNATURE, ignoring expiry.
+
+    Used when restoring sessions from browser cookies: the access token may
+    have expired (it is short-lived), but a valid signature still proves the
+    user_id was issued by us. Expiry is then handled by the refresh flow,
+    which validates the refresh token against the database.
+
+    Returns:
+        user_id if the signature is valid, None otherwise.
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            get_jwt_secret(),
+            algorithms=["HS256"],
+            options={"verify_exp": False},
+        )
+        if payload.get("type") != "access":
+            return None
+        return payload.get("user_id") or None
+    except jwt.InvalidTokenError:
+        return None
+
+
 def is_access_token_expired(token: str) -> bool:
     """Check if access token is expired without raising exception."""
     try:

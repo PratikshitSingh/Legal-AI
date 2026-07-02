@@ -1,7 +1,5 @@
 """Admin Dashboard - Manage users and roles."""
 
-import io
-import csv
 import streamlit as st
 import pandas as pd
 
@@ -9,6 +7,9 @@ from legal_ai.auth import auth
 from legal_ai.db import db
 from legal_ai.auth import rbac
 from legal_ai.services import embed
+
+# Initialize auth - restores session from browser storage
+auth.init_auth()
 
 # Configure page
 st.set_page_config(page_title="Admin Dashboard", page_icon="👑", layout="wide")
@@ -155,7 +156,6 @@ with tab2:
     }
     
     # Convert to display format
-    import pandas as pd
     df = pd.DataFrame(perm_data)
     df = df.set_index("Permission")
     

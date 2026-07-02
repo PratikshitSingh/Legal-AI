@@ -34,11 +34,11 @@ from legal_ai.core import config, utils, constants
 class LegalChat:
     """Conversational RAG agent (history-aware retriever + session store)."""
 
-    store: dict[str, ChatMessageHistory] = {}
-    session_id: str = ""
-    rag_chain = None
-
     def __init__(self, session_id: str):
+        # Instance-level store: a class-level dict would be shared by every
+        # LegalChat instance in the process, leaking chat history between
+        # sessions and never being freed by clear_chat_cache().
+        self.store: dict[str, ChatMessageHistory] = {}
         cfg = config.load_config()
         llm_cfg = cfg["llm"]
         retrieval_cfg = cfg.get("retrieval", {})
@@ -159,6 +159,13 @@ class LegalChat:
             config={
                 "configurable": {"session_id": self.session_id},
                 "callbacks": callbacks,
+                # langfuse >= 3 reads trace context from metadata; older
+                # versions ignore these keys (handler kwargs are used instead).
+                "metadata": {
+                    "langfuse_session_id": self.session_id,
+                    "langfuse_user_id": user_id,
+                    "langfuse_tags": ["question-answering", "eu-ai-act", "retrieval-augmented"],
+                },
             },
         )["answer"]
         return response

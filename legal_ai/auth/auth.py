@@ -41,34 +41,29 @@ def init_auth() -> None:
 
     st.session_state._legal_ai_auth_initialized = True
 
-    # If session has no user, attempt to restore from browser storage so
-    # new tabs will pick up an existing sign-in immediately.
+    # If session has no user, attempt to restore from browser storage (cookie)
+    # or one-time handoff query params so new tabs pick up an existing sign-in.
+    # restore_auth_in_session() verifies the token signature and loads the
+    # role from the DB — client-supplied role/user_id values are never trusted.
     if not st.session_state.get("legal_ai_user_id"):
-        if browser_storage.restore_auth_in_session():
-            return
-
-    # Legacy fallback for one-time handoff parameters.
-    query_params = st.query_params
-    if all(k in query_params for k in ["user_id", "access_token", "email"]):
-        st.session_state.legal_ai_user_id = query_params.get("user_id")
-        st.session_state.legal_ai_user_email = query_params.get("email")
-        st.session_state.legal_ai_access_token = query_params.get("access_token")
-        st.session_state.legal_ai_refresh_token = query_params.get("refresh_token", "")
-        st.session_state.legal_ai_user_role = query_params.get("role", "viewer")
-        st.session_state.legal_ai_user_full_name = query_params.get("full_name")
-        st.session_state.legal_ai_user_firm = query_params.get("firm")
-
-        browser_storage.store_auth_in_browser(
-            st.session_state.legal_ai_user_id,
-            st.session_state.legal_ai_user_email,
-            st.session_state.legal_ai_access_token,
-            st.session_state.legal_ai_refresh_token,
-            st.session_state.legal_ai_user_role,
-            st.session_state.legal_ai_user_full_name,
-            st.session_state.legal_ai_user_firm,
+        came_from_query = all(
+            k in st.query_params for k in ["user_id", "access_token"]
         )
-
-        st.query_params.clear()
+        if browser_storage.restore_auth_in_session():
+            if came_from_query:
+                # Persist the handoff into the browser cookie, then remove the
+                # sensitive tokens from the URL.
+                browser_storage.store_auth_in_browser(
+                    st.session_state.legal_ai_user_id,
+                    st.session_state.legal_ai_user_email,
+                    st.session_state.legal_ai_access_token,
+                    st.session_state.legal_ai_refresh_token,
+                    st.session_state.legal_ai_user_role,
+                    st.session_state.legal_ai_user_full_name,
+                    st.session_state.legal_ai_user_firm,
+                )
+                st.query_params.clear()
+            return
 
 
 def is_signed_in() -> bool:
@@ -439,8 +434,11 @@ def has_role(required_role: str) -> bool:
         True if user has the required role or higher
     """
     role_hierarchy = {"viewer": 0, "editor": 1, "admin": 2}
+    if required_role not in role_hierarchy:
+        # Unknown role requirement must fail closed, not grant access.
+        return False
     current = role_hierarchy.get(get_current_user_role(), -1)
-    required = role_hierarchy.get(required_role, -1)
+    required = role_hierarchy[required_role]
     return current >= required
 
 

@@ -15,18 +15,17 @@ AUTH_COOKIE_NAME = "legal_ai_auth"
 def _inject_html(script: str) -> None:
     """Inject HTML/JS into the page.
 
-    Prefer `st.html` when available (newer Streamlit) because it runs in the
-    main page context. Fall back to `components.html` for compatibility.
+    IMPORTANT: `st.html` sanitizes content with DOMPurify and STRIPS <script>
+    tags, so scripts injected through it never execute. `components.html`
+    renders inside a same-origin iframe where scripts do run; the scripts
+    below reach the main page via `window.parent`.
     """
     try:
-        render_html = getattr(st, "html", None)
-        if callable(render_html):
-            render_html(script)
-            return
+        html(script, height=0)
     except Exception:
-        pass
-
-    html(script, height=0)
+        # components.html is deprecated (slated for removal after 2026-06);
+        # fall back to st.iframe on Streamlit versions that removed it.
+        st.iframe(script, height=0)
 
 
 def _auth_cookie_max_age_seconds() -> int:
@@ -64,20 +63,25 @@ def _cookie_script(cookie_value: str, max_age_seconds: int) -> str:
     <script>
         (function() {{
             try {{
+                // Component scripts run inside an iframe; write to the parent
+                // (main) page so the cookie/localStorage belong to the app page.
+                const root = (function() {{
+                    try {{ void window.parent.document; return window.parent; }} catch (e) {{ return window; }}
+                }})();
                 const cookieName = decodeURIComponent("{cookie_name}");
                 const cookieValue = decodeURIComponent("{encoded_value}");
-                document.cookie = cookieName + '=' + cookieValue + '; Path=/; Max-Age={max_age_seconds}; SameSite=Lax' + (window.location.protocol === 'https:' ? '; Secure' : '');
+                root.document.cookie = cookieName + '=' + encodeURIComponent(cookieValue) + '; Path=/; Max-Age={max_age_seconds}; SameSite=Lax' + (root.location.protocol === 'https:' ? '; Secure' : '');
 
                 // localStorage-based sync (triggers storage event in other tabs)
                 try {{
-                    const payload = JSON.stringify({{ type: 'set', value: cookieValue, ts: Date.now() }});
-                    localStorage.setItem('legal_ai_auth_sync', payload);
+                    const payload = JSON.stringify({{ type: 'set', ts: Date.now() }});
+                    root.localStorage.setItem('legal_ai_auth_sync', payload);
                 }} catch (e) {{ /* ignore localStorage errors */ }}
 
                 // BroadcastChannel for modern browsers (optional, but more immediate)
                 try {{
                     const bc = new BroadcastChannel('legal_ai_auth');
-                    bc.postMessage({{ type: 'set', value: cookieValue, ts: Date.now() }});
+                    bc.postMessage({{ type: 'set', ts: Date.now() }});
                     bc.close();
                 }} catch (e) {{ /* ignore BroadcastChannel errors */ }}
             }} catch (e) {{ console.error(e); }}
@@ -92,12 +96,15 @@ def _clear_cookie_script() -> str:
     <script>
         (function() {{
             try {{
+                const root = (function() {{
+                    try {{ void window.parent.document; return window.parent; }} catch (e) {{ return window; }}
+                }})();
                 const cookieName = "{AUTH_COOKIE_NAME}";
-                document.cookie = cookieName + '=; Path=/; Max-Age=0; SameSite=Lax' + (window.location.protocol === 'https:' ? '; Secure' : '');
+                root.document.cookie = cookieName + '=; Path=/; Max-Age=0; SameSite=Lax' + (root.location.protocol === 'https:' ? '; Secure' : '');
 
                 try {{
                     const payload = JSON.stringify({{ type: 'clear', ts: Date.now() }});
-                    localStorage.setItem('legal_ai_auth_sync', payload);
+                    root.localStorage.setItem('legal_ai_auth_sync', payload);
                 }} catch (e) {{ /* ignore localStorage errors */ }}
 
                 try {{
@@ -196,20 +203,51 @@ def get_auth_from_session_or_query() -> dict | None:
 
 
 def restore_auth_in_session() -> bool:
-    """Restore auth into Streamlit session state from browser state."""
+    """Restore auth into Streamlit session state from browser state.
+
+    SECURITY: cookies and query params are client-controlled, so nothing in
+    them can be trusted directly. The access token's signature is verified to
+    prove the user_id, and role/profile are loaded from the database — never
+    from the client-supplied payload (otherwise anyone could edit their cookie
+    or URL to gain the 'admin' role).
+    """
     auth_data = get_auth_from_session_or_query()
+    if not auth_data:
+        return False
 
-    if auth_data:
-        st.session_state.legal_ai_user_id = auth_data["user_id"]
-        st.session_state.legal_ai_user_email = auth_data["email"]
-        st.session_state.legal_ai_access_token = auth_data["access_token"]
-        st.session_state.legal_ai_refresh_token = auth_data["refresh_token"]
-        st.session_state.legal_ai_user_role = auth_data["role"]
-        st.session_state.legal_ai_user_full_name = auth_data["full_name"]
-        st.session_state.legal_ai_user_firm = auth_data["firm"]
-        return True
+    access_token = auth_data.get("access_token") or ""
+    token_user_id = jwt_utils.get_user_id_from_token_signature(access_token)
+    if not token_user_id or token_user_id != auth_data.get("user_id"):
+        # Forged/tampered payload — ignore it and clear the bad cookie.
+        clear_auth_from_browser()
+        return False
 
-    return False
+    # Load trusted profile fields (role, name, firm, email) from the DB.
+    role = "viewer"
+    full_name = auth_data.get("full_name")
+    firm = auth_data.get("firm")
+    email = auth_data.get("email")
+    try:
+        from legal_ai.db import db
+
+        user = db.get_user_by_id(token_user_id)
+        if user:
+            role = user.get("role", "viewer")
+            full_name = user.get("full_name")
+            firm = user.get("firm")
+            email = user.get("email")
+    except Exception as exc:
+        # DB unavailable: fall back to least privilege.
+        print(f"[auth] Could not load user profile during restore: {exc}")
+
+    st.session_state.legal_ai_user_id = token_user_id
+    st.session_state.legal_ai_user_email = email
+    st.session_state.legal_ai_access_token = access_token
+    st.session_state.legal_ai_refresh_token = auth_data.get("refresh_token")
+    st.session_state.legal_ai_user_role = role
+    st.session_state.legal_ai_user_full_name = full_name
+    st.session_state.legal_ai_user_firm = firm
+    return True
 
 
 def inject_auth_sync_listener() -> None:
@@ -219,36 +257,42 @@ def inject_auth_sync_listener() -> None:
     auth change is observed it performs a `window.location.reload()` so Streamlit re-runs and
     `init_auth()` can restore the updated cookie state.
     """
-    script = f"""
+    script = """
     <script>
-    (function() {{
-        try {{
-            window.addEventListener('storage', function(e) {{
-                if (!e.key) return;
-                if (e.key === 'legal_ai_auth_sync') {{
-                    try {{
-                        const data = JSON.parse(e.newValue || e.oldValue || null);
-                        if (data && (data.type === 'set' || data.type === 'clear')) {{
-                            // Reload to let Streamlit re-run and pick up cookie/localStorage changes
-                            window.location.reload();
-                        }}
-                    }} catch (err) {{ /* ignore parse errors */ }}
-                }}
-            }});
+    (function() {
+        try {
+            // Runs inside a component iframe: listen on the parent page's
+            // storage and reload the parent so Streamlit re-runs init_auth().
+            const root = (function() {
+                try { void window.parent.document; return window.parent; } catch (e) { return window; }
+            })();
 
-            try {{
+            root.addEventListener('storage', function(e) {
+                if (!e.key) return;
+                if (e.key === 'legal_ai_auth_sync') {
+                    try {
+                        const data = JSON.parse(e.newValue || e.oldValue || null);
+                        if (data && (data.type === 'set' || data.type === 'clear')) {
+                            // Reload to let Streamlit re-run and pick up cookie changes
+                            root.location.reload();
+                        }
+                    } catch (err) { /* ignore parse errors */ }
+                }
+            });
+
+            try {
                 const bc = new BroadcastChannel('legal_ai_auth');
-                bc.onmessage = function(ev) {{
-                    try {{
+                bc.onmessage = function(ev) {
+                    try {
                         const data = ev.data;
-                        if (data && (data.type === 'set' || data.type === 'clear')) {{
-                            window.location.reload();
-                        }}
-                    }} catch (err) {{ /* ignore */ }}
-                }};
-            }} catch (e) {{ /* BroadcastChannel not supported */ }}
-        }} catch (e) {{ console.error(e); }}
-    }})();
+                        if (data && (data.type === 'set' || data.type === 'clear')) {
+                            root.location.reload();
+                        }
+                    } catch (err) { /* ignore */ }
+                };
+            } catch (e) { /* BroadcastChannel not supported */ }
+        } catch (e) { console.error(e); }
+    })();
     </script>
     """
 

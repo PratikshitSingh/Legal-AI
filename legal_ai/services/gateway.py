@@ -9,7 +9,7 @@ from legal_ai.services.jurisdiction_retriever import JurisdictionAwareRetriever
 
 from legal_ai.db import db
 from legal_ai.auth import jwt_utils
-from legal_ai.auth.auth import ensure_db, get_current_user, get_current_user_id
+from legal_ai.auth.auth import ensure_db
 
 _chats: dict[str, LegalChat] = {}
 _jurisdiction_retriever: JurisdictionAwareRetriever | None = None
@@ -103,15 +103,18 @@ def route_query(
         raise PermissionError("User does not own this session")
     
     ensure_db()
-    db.log_message(session_id, "user", question)
-    
+
+    # Hydrate the chat from the DB BEFORE logging the new question; otherwise
+    # the question is loaded into history from the DB and then added again by
+    # the chain, duplicating it in the LLM context on resumed sessions.
     chat = get_chat(session_id)
-    
-    # If jurisdiction_ids provided, use jurisdiction-aware retriever
+    db.log_message(session_id, "user", question)
+
+    # If jurisdiction_ids provided, pass jurisdiction context to the chat
     if jurisdiction_ids:
-        retriever = get_jurisdiction_retriever()
-        # Note: This would be integrated into LegalChat to use filtered results
-        # For now, we just pass the context to the chat
+        # Note: Full retriever-level filtering would be integrated into
+        # LegalChat (see get_jurisdiction_retriever); for now we pass the
+        # context to the chat as part of the question.
         context_info = f"[Filtered to jurisdictions: {', '.join(jurisdiction_ids)}]"
         enhanced_question = f"{question}\n{context_info}"
         answer = chat.ask(enhanced_question, user_id=user_id or "anonymous")

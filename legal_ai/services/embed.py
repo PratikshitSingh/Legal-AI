@@ -292,11 +292,13 @@ def embed_text_in_chromadb(
         if not filtered_documents:
             print("All chunks already exist in collection. Skipping embedding.")
             return 0
-        
+
+        skipped = len(ids) - len(filtered_ids)
         ids = filtered_ids
         documents = filtered_documents
         metadatas = filtered_metadatas
-        print(f"Skipping {len(filtered_ids) - len(ids)} duplicate chunks")
+        if skipped:
+            print(f"Skipping {skipped} duplicate chunks")
 
     chunks_added = 0
     for i in tqdm(
@@ -378,18 +380,35 @@ def ingest_custom_document(
         dup_check = check_duplicate_document(document_name, content_hash)
         print(f"Duplicate check result: {dup_check}")
         
-        # Step 4: Embed with duplicate handling
+        # Step 4: Exact duplicates are NOT re-embedded and NOT re-recorded.
+        # (Previously the skip flag was passed with existing_chunk_ids=None,
+        # which disabled skipping — duplicates were silently re-embedded while
+        # the UI claimed nothing was added, and a second document record was
+        # created for the same content.)
+        if dup_check["existing_exact_match"]:
+            existing_doc = db.get_document_by_name_hash(document_name, content_hash)
+            return {
+                "success": True,
+                "message": (
+                    f"⚠️ Duplicate document detected! No new chunks added "
+                    f"(existing: {dup_check['existing_chunks']} chunks)."
+                ),
+                "document_id": str(existing_doc["document_id"]) if existing_doc else None,
+                "chunks_added": 0,
+                "is_duplicate": True,
+                "existing_chunks": dup_check["existing_chunks"],
+            }
+
+        # Step 5: Embed new content
         print("Embedding into Chroma…")
         chunks_added = embed_text_in_chromadb(
             text,
             document_name,
             document_description,
             uploaded_by_user_id=uploaded_by_user_id,
-            skip_duplicate_chunks=dup_check["existing_exact_match"],
-            existing_chunk_ids=None,  # Full chunk skip not supported yet; requires full collection scan
         )
-        
-        # Step 5: Record in documents table
+
+        # Step 6: Record in documents table
         print("Recording in documents table…")
         doc_record = db.create_document_record(
             name=document_name,
@@ -403,20 +422,13 @@ def ingest_custom_document(
                 "text_length_chars": len(text),
             },
         )
-        
-        if dup_check["existing_exact_match"]:
-            message = f"⚠️ Duplicate document detected! No new chunks added (existing: {dup_check['existing_chunks']} chunks)."
-            is_dup = True
-        else:
-            message = f"✅ Document uploaded successfully! Added {chunks_added} chunks."
-            is_dup = False
-        
+
         return {
             "success": True,
-            "message": message,
+            "message": f"✅ Document uploaded successfully! Added {chunks_added} chunks.",
             "document_id": str(doc_record["document_id"]) if doc_record else None,
             "chunks_added": chunks_added,
-            "is_duplicate": is_dup,
+            "is_duplicate": False,
             "existing_chunks": dup_check["existing_chunks"],
         }
     

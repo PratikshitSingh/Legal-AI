@@ -7,8 +7,9 @@ logging.getLogger("transformers").setLevel(logging.ERROR)
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 
 import streamlit as ST
+from streamlit.components.v1 import html as components_html
 
-from legal_ai.core import config, utils
+from legal_ai.core import utils
 from legal_ai.auth.auth import (
     get_or_create_session_id,
     get_current_user,
@@ -99,15 +100,21 @@ def render_magic_link_verification(email: str, token: str) -> None:
         ST.balloons()
         # Do a client-side redirect shortly after success so the cookie write from
         # `set_auth_tokens` has time to persist before the app loads again.
-        ST.markdown(
+        # NOTE: must use components.html — st.markdown/st.html never execute
+        # <script> tags. The component runs in an iframe, so redirect the parent.
+        components_html(
             """
             <script>
                 setTimeout(function() {
-                    window.location.href = '/';
-                }, 250);
+                    try {
+                        window.parent.location.href = window.parent.location.pathname;
+                    } catch (e) {
+                        window.location.href = '/';
+                    }
+                }, 400);
             </script>
             """,
-            unsafe_allow_html=True,
+            height=0,
         )
         ST.stop()
     else:

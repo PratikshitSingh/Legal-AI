@@ -12,14 +12,25 @@ Test scenarios:
 
 import sys
 import os
-from datetime import datetime, timezone
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# This is an end-to-end script that WRITES to the real database configured in
+# .env (creates users, magic links, sessions). Under pytest, only run it when
+# explicitly requested; running it directly (`python tests/test_auth_flow.py`)
+# always works.
+if "pytest" in sys.modules and os.environ.get("RUN_E2E_DB_TESTS") != "1":
+    import pytest
+
+    pytest.skip(
+        "E2E DB tests write to the real database; set RUN_E2E_DB_TESTS=1 to run",
+        allow_module_level=True,
+    )
+
 from legal_ai.db import db
 from legal_ai.auth import jwt_utils
-from legal_ai.services.email_service import send_magic_link_email, get_email_provider
+from legal_ai.services.email_service import send_magic_link_email
 
 
 def test_db_init():

@@ -1,6 +1,7 @@
 """Neon Postgres schema and helpers."""
 
 import hashlib
+import json
 import os
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
@@ -394,8 +395,8 @@ def update_user_role(user_id: str, role: str, changed_by_user_id: str | None = N
                 {
                     "user_id": user_id,
                     "action": "role_update",
-                    "old_values": f'{{"role": "{old_user}"}}'.replace("'", '"'),
-                    "new_values": f'{{"role": "{role}"}}'.replace("'", '"'),
+                    "old_values": json.dumps({"role": old_user}),
+                    "new_values": json.dumps({"role": role}),
                     "changed_by": changed_by_user_id,
                 },
             )
@@ -846,7 +847,10 @@ def create_document_record(
                     "uploaded_by_user_id": uploaded_by_user_id,
                     "file_type": file_type,
                     "chunk_count": chunk_count,
-                    "metadata": str(metadata).replace("'", '"'),
+                    # json.dumps, NOT str(dict).replace("'", '"') — the latter
+                    # produces invalid JSON for None/True/False and any value
+                    # containing an apostrophe, making the insert fail.
+                    "metadata": json.dumps(metadata),
                 },
             ).mappings().first()
         
@@ -1006,7 +1010,7 @@ def log_document_audit(document_id: str, user_id: str, action: str, details: dic
                     "document_id": document_id,
                     "user_id": user_id,
                     "action": action,
-                    "details": str(details).replace("'", '"'),
+                    "details": json.dumps(details),
                 },
             )
     except Exception as e:

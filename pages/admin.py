@@ -1,7 +1,5 @@
 """Admin Dashboard - Manage users and roles."""
 
-import io
-import csv
 import streamlit as st
 import pandas as pd
 
@@ -158,7 +156,6 @@ with tab2:
     }
     
     # Convert to display format
-    import pandas as pd
     df = pd.DataFrame(perm_data)
     df = df.set_index("Permission")
     
