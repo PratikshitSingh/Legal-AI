@@ -311,11 +311,6 @@ if __name__ == "__main__":
     ST.title("Legal-AI")
     ST.caption("EU AI Act RAG assistant — multi-turn conversational retrieval")
 
-    tracing_status = utils.get_langfuse_tracing_status()
-    # Only show tracing status if it's actually enabled (don't show errors/warnings to users)
-    if tracing_status["enabled"]:
-        ST.success(tracing_status["message"])
-
     # ========================================================================
     # Handle magic link verification from URL query params
     # ========================================================================
