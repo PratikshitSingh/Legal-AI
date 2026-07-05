@@ -1,0 +1,62 @@
+name: CI & Streamlit Deploy Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  APP_URL: https://legal-ai-anjhwkwci9gqrofvqkueks.streamlit.app/
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      JWT_SECRET: ci-dummy-secret
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # CPU-only torch: avoids multi-GB CUDA wheels on CI runners
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+  verify-deployment:
+    name: verify-deployment
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Wait for Streamlit Cloud to pick up the commit
+        run: sleep 60
+
+      - name: Poll app until healthy
+        run: |
+          for attempt in $(seq 1 10); do
+            status=$(curl -s -o /dev/null -w "%{http_code}" -L "$APP_URL" || echo "000")
+            echo "Attempt $attempt: HTTP $status"
+            if [ "$status" = "200" ]; then
+              echo "App is up and serving."
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "App did not return HTTP 200 after 10 attempts." >&2
+          exit 1
