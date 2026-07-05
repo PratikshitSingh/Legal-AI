@@ -50,8 +50,11 @@ jobs:
 
       - name: Poll app until healthy
         run: |
+          # Streamlit Cloud's edge bounces through share.streamlit.io and
+          # requires cookies to complete the redirect chain, so keep a jar.
           for attempt in $(seq 1 10); do
-            status=$(curl -s -o /dev/null -w "%{http_code}" -L "$APP_URL" || echo "000")
+            status=$(curl -s -o /dev/null -w "%{http_code}" -L --max-redirs 10 \
+              -c cookies.txt -b cookies.txt "$APP_URL") || status="000"
             echo "Attempt $attempt: HTTP $status"
             if [ "$status" = "200" ]; then
               echo "App is up and serving."
