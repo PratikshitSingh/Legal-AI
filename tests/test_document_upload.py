@@ -54,6 +54,7 @@ class TestTextExtraction:
             embed.extract_text_from_file(file_bytes, "docx")
 
 
+@pytest.mark.integration
 class TestDuplicateDetection:
     """Test duplicate document detection preflight."""
     
@@ -71,6 +72,7 @@ class TestDuplicateDetection:
         assert result["existing_exact_match"] == False
 
 
+@pytest.mark.integration
 class TestDocumentRecording:
     """Test document record creation in database."""
     
@@ -107,6 +109,7 @@ class TestDocumentRecording:
         assert result is None
 
 
+@pytest.mark.integration
 class TestEmbeddingIntegration:
     """Test embedding with duplicate chunk skipping."""
     
@@ -130,6 +133,7 @@ class TestEmbeddingIntegration:
         assert collection.count() > initial_count
 
 
+@pytest.mark.integration
 class TestIngestCustomDocument:
     """Test complete custom document ingestion flow."""
     

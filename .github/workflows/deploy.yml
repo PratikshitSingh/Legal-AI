@@ -35,7 +35,8 @@ jobs:
           pip install pytest
 
       - name: Run tests
-        run: pytest tests/ -v
+        # integration-marked tests need live services (Neon DB, Chroma, HF models)
+        run: pytest tests/ -v -m "not integration"
 
   verify-deployment:
     name: verify-deployment
