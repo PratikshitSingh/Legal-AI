@@ -2,12 +2,8 @@
 
 import os as OS
 
-from dotenv import load_dotenv
-
-from .config import load_config
 from .constants import COLLECTION_NAME, DB_FOLDER
-
-load_dotenv()
+from .settings import load_config
 
 
 def use_chroma_cloud() -> bool:
@@ -51,21 +47,6 @@ def chroma_collection_has_documents() -> bool:
         return collection.count() > 0
     except Exception:
         return False
-
-
-def get_gemini_api_key() -> str:
-    """Get Gemini API key from environment."""
-    config = load_config()
-    env_name = config.get("embeddings", {}).get("api_key_env", "GEMINI_API_KEY")
-    key = OS.getenv(env_name) or OS.getenv("GEMINI_API_KEY")
-    if not key:
-        raise ValueError(
-            f"Set {env_name} in .env (Google AI Studio API key). "
-            "Get one at https://aistudio.google.com/apikey"
-        )
-    OS.environ.setdefault("GEMINI_API_KEY", key)
-    OS.environ.setdefault("GOOGLE_API_KEY", key)
-    return key
 
 
 # ============================================================================

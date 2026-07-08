@@ -8,7 +8,7 @@ import streamlit as st
 
 from legal_ai.db import db
 from legal_ai.services.email_service import send_magic_link_email
-from legal_ai.core import config
+from legal_ai.core import settings
 from . import jwt_utils
 from . import browser_storage
 
@@ -165,7 +165,7 @@ def request_magic_link(email: str, app_url: str = None) -> dict[str, str]:
 
         # Determine app URL: use provided value or get from config
         if app_url is None:
-            app_url = config.get_app_base_url()
+            app_url = settings.get_app_base_url()
 
         # Include both token and email in the magic link (URL-encode the email)
         encoded_email = quote(email, safe="")

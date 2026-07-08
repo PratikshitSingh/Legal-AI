@@ -1,10 +1,10 @@
 """Legal-AI Streamlit Application - Main Entry Point."""
 
-import logging
-import os
+from legal_ai.core.logging import configure_logging
 
-logging.getLogger("transformers").setLevel(logging.ERROR)
-os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+# Configure logging (and quiet transformers) before imports pull in the
+# LLM/embedding stack.
+configure_logging()
 
 import streamlit as ST
 from streamlit.components.v1 import html as components_html

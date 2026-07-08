@@ -5,9 +5,6 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 def get_jwt_secret() -> str:

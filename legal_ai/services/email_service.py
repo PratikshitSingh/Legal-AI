@@ -3,10 +3,6 @@
 import os
 from abc import ABC, abstractmethod
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 
 class EmailProvider(ABC):
     """Abstract base for email providers."""

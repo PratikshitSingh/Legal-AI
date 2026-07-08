@@ -6,11 +6,8 @@ import os
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
-
-load_dotenv()
 
 
 @lru_cache

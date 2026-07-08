@@ -28,7 +28,7 @@ try:
 finally:
     sys.stderr = old_stderr
 
-from legal_ai.core import config, utils
+from legal_ai.core import constants, settings, utils
 
 
 class LegalChat:
@@ -39,19 +39,16 @@ class LegalChat:
         # LegalChat instance in the process, leaking chat history between
         # sessions and never being freed by clear_chat_cache().
         self.store: dict[str, ChatMessageHistory] = {}
-        cfg = config.load_config()
-        llm_cfg = cfg["llm"]
-        retrieval_cfg = cfg.get("retrieval", {})
-        top_k = retrieval_cfg.get("top_k", 5)
-        gemini_key = utils.get_gemini_api_key()
+        app_settings = settings.get_settings()
+        gemini_key = settings.get_gemini_api_key()
 
         embeddings = HuggingFaceEmbeddings(
-            model_name="all-mpnet-base-v2",
+            model_name=constants.EMBEDDING_MODEL_NAME,
         )
         self.session_id = session_id
 
         llm = ChatGoogleGenerativeAI(
-            model=llm_cfg["model"],
+            model=app_settings.llm_model,
             api_key=gemini_key,
         )
 
@@ -62,7 +59,7 @@ class LegalChat:
             collection_name=utils.COLLECTION_NAME,
             embedding_function=embeddings,
         )
-        retriever = db.as_retriever(search_kwargs={"k": top_k})
+        retriever = db.as_retriever(search_kwargs={"k": app_settings.retrieval_top_k})
 
         contextualize_q_system_prompt = (
             "Given a chat history and the latest user question "
