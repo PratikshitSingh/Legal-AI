@@ -10,10 +10,11 @@ import streamlit as ST
 from streamlit.components.v1 import html as components_html
 
 from legal_ai.core import tracing
+from legal_ai.core.constants import SessionKeys
 from legal_ai.services import vector_store
 from legal_ai.auth.auth import (
     get_or_create_session_id,
-    get_current_user,
+    get_current_user_email,
     get_current_user_id,
     get_current_access_token,
     is_signed_in,
@@ -37,7 +38,7 @@ CHAT_UI_KEY = "chat1"
 
 def load_ui_messages(session_id: str) -> None:
     rows = db.get_session_messages(session_id)
-    ST.session_state.messages = [
+    ST.session_state[SessionKeys.MESSAGES] = [
         {"id": CHAT_UI_KEY, "role": row["role"], "content": row["content"]} for row in rows
     ]
 
@@ -74,7 +75,7 @@ def render_magic_link_verification(email: str, token: str) -> None:
     # (browser prefetch, reloads, or stale verification URL).
     verified_marker = f"{email}:{token}"
     if is_signed_in() and verified_marker == ST.session_state.get(
-        "_legal_ai_last_verified_magic_link"
+        SessionKeys.LAST_VERIFIED_MAGIC_LINK
     ):
         ST.query_params.clear()
         ST.rerun()
@@ -95,7 +96,7 @@ def render_magic_link_verification(email: str, token: str) -> None:
             full_name=result.get("full_name"),
             firm=result.get("firm"),
         )
-        ST.session_state._legal_ai_last_verified_magic_link = verified_marker
+        ST.session_state[SessionKeys.LAST_VERIFIED_MAGIC_LINK] = verified_marker
         ST.query_params.clear()
         ST.success(f"✅ Welcome, {result['email']}!")
         start_new_chat(result["user_id"])
@@ -155,7 +156,7 @@ def render_magic_link_email_prompt(token: str) -> None:
 
 
 def render_sidebar(session_id: str) -> None:
-    user = get_current_user()
+    user = get_current_user_email()
     with ST.sidebar:
         ST.subheader("Account")
         ST.text(f"Signed in as {user}")
@@ -221,7 +222,7 @@ def render_sidebar(session_id: str) -> None:
                     ST.rerun()
 
             # Store selected jurisdictions in session state for queries
-            ST.session_state["selected_jurisdictions"] = selected_ids
+            ST.session_state[SessionKeys.SELECTED_JURISDICTIONS] = selected_ids
 
             # Add comparison page button
             if ST.button("⚖️ Compare Jurisdictions", use_container_width=True):
@@ -267,10 +268,10 @@ def render_sidebar(session_id: str) -> None:
 def create_chat(chat_id: str, session_id: str) -> None:
     chat = ST.container()
 
-    if "messages" not in ST.session_state:
-        ST.session_state.messages = []
+    if SessionKeys.MESSAGES not in ST.session_state:
+        ST.session_state[SessionKeys.MESSAGES] = []
 
-    for message in ST.session_state.messages:
+    for message in ST.session_state[SessionKeys.MESSAGES]:
         if message["id"] == chat_id:
             chat.chat_message(message["role"]).write(message["content"])
 
@@ -284,7 +285,7 @@ def create_chat(chat_id: str, session_id: str) -> None:
             access_token = get_current_access_token()
 
             # Get selected jurisdictions from session state
-            jurisdiction_ids = ST.session_state.get("selected_jurisdictions", [])
+            jurisdiction_ids = ST.session_state.get(SessionKeys.SELECTED_JURISDICTIONS, [])
 
             assistant_response = route_query(
                 question=prompt,
@@ -294,8 +295,10 @@ def create_chat(chat_id: str, session_id: str) -> None:
             )
             chat.chat_message("assistant").write(assistant_response)
 
-        ST.session_state.messages.append({"id": chat_id, "role": "user", "content": prompt})
-        ST.session_state.messages.append(
+        ST.session_state[SessionKeys.MESSAGES].append(
+            {"id": chat_id, "role": "user", "content": prompt}
+        )
+        ST.session_state[SessionKeys.MESSAGES].append(
             {"id": chat_id, "role": "assistant", "content": assistant_response}
         )
 
@@ -363,11 +366,11 @@ if __name__ == "__main__":
         )
         ST.stop()
 
-    if "legal_ai_session_id" not in ST.session_state:
+    if SessionKeys.SESSION_ID not in ST.session_state:
         start_new_chat()
 
     session_id = get_or_create_session_id()
-    if "messages" not in ST.session_state:
+    if SessionKeys.MESSAGES not in ST.session_state:
         load_ui_messages(session_id)
 
     render_sidebar(session_id)

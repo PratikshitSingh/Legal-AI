@@ -1,6 +1,8 @@
-"""Role-Based Access Control (RBAC): the role model and role display helpers."""
+"""Role-Based Access Control: the single source of truth for the role model.
 
-from . import auth
+Pure module — no Streamlit, no DB. ``auth`` layers the current-user context
+on top of these checks.
+"""
 
 # ============================================================================
 # Role Constants
@@ -38,22 +40,24 @@ ROLE_PERMISSIONS = {
     },
 }
 
+_ROLE_BADGES = {
+    ROLE_VIEWER: "👁️ Viewer",
+    ROLE_EDITOR: "✏️ Editor",
+    ROLE_ADMIN: "👑 Admin",
+}
 
-def display_role_badge(role: str | None = None) -> str:
-    """Display role as a colored badge emoji.
 
-    Args:
-        role: Role to display. If None, shows current user's role.
+def role_at_least(user_role: str, required_role: str) -> bool:
+    """Check whether ``user_role`` meets or exceeds ``required_role``.
 
-    Returns:
-        Emoji badge string
+    Fails closed: an unknown required role never grants access, and an
+    unknown user role never satisfies any requirement.
     """
-    if role is None:
-        role = auth.get_current_user_role()
+    if required_role not in ROLE_HIERARCHY:
+        return False
+    return ROLE_HIERARCHY.get(user_role, -1) >= ROLE_HIERARCHY[required_role]
 
-    badges = {
-        ROLE_VIEWER: "👁️ Viewer",
-        ROLE_EDITOR: "✏️ Editor",
-        ROLE_ADMIN: "👑 Admin",
-    }
-    return badges.get(role, "❓ Unknown")
+
+def display_role_badge(role: str) -> str:
+    """Render a role as an emoji badge string."""
+    return _ROLE_BADGES.get(role, "❓ Unknown")

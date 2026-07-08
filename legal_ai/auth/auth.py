@@ -10,8 +10,10 @@ import streamlit as st
 from legal_ai import db
 from legal_ai.services.email_service import send_magic_link_email
 from legal_ai.core import settings
-from . import jwt_utils
+from legal_ai.core.constants import SessionKeys
 from . import browser_storage
+from . import jwt_utils
+from . import rbac
 
 logger = logging.getLogger(__name__)
 
@@ -29,31 +31,31 @@ def init_auth() -> None:
     """
     # Allow re-checking browser state when session has no auth.
     # If we've already initialized and a signed-in user exists, skip work.
-    if st.session_state.get("_legal_ai_auth_initialized") and st.session_state.get(
-        "legal_ai_user_id"
+    if st.session_state.get(SessionKeys.AUTH_INITIALIZED) and st.session_state.get(
+        SessionKeys.USER_ID
     ):
         return
 
-    st.session_state._legal_ai_auth_initialized = True
+    st.session_state[SessionKeys.AUTH_INITIALIZED] = True
 
     # If session has no user, attempt to restore from browser storage (cookie)
     # or one-time handoff query params so new tabs pick up an existing sign-in.
     # restore_auth_in_session() verifies the token signature and loads the
     # role from the DB — client-supplied role/user_id values are never trusted.
-    if not st.session_state.get("legal_ai_user_id"):
+    if not st.session_state.get(SessionKeys.USER_ID):
         came_from_query = all(k in st.query_params for k in ["user_id", "access_token"])
         if browser_storage.restore_auth_in_session():
             if came_from_query:
                 # Persist the handoff into the browser cookie, then remove the
                 # sensitive tokens from the URL.
                 browser_storage.store_auth_in_browser(
-                    st.session_state.legal_ai_user_id,
-                    st.session_state.legal_ai_user_email,
-                    st.session_state.legal_ai_access_token,
-                    st.session_state.legal_ai_refresh_token,
-                    st.session_state.legal_ai_user_role,
-                    st.session_state.legal_ai_user_full_name,
-                    st.session_state.legal_ai_user_firm,
+                    st.session_state[SessionKeys.USER_ID],
+                    st.session_state[SessionKeys.USER_EMAIL],
+                    st.session_state[SessionKeys.ACCESS_TOKEN],
+                    st.session_state[SessionKeys.REFRESH_TOKEN],
+                    st.session_state[SessionKeys.USER_ROLE],
+                    st.session_state[SessionKeys.USER_FULL_NAME],
+                    st.session_state[SessionKeys.USER_FIRM],
                 )
                 st.query_params.clear()
             return
@@ -61,22 +63,22 @@ def init_auth() -> None:
 
 def is_signed_in() -> bool:
     """Check if user is signed in (has valid access token in session)."""
-    return bool(st.session_state.get("legal_ai_user_id"))
+    return bool(st.session_state.get(SessionKeys.USER_ID))
 
 
 def get_current_user_id() -> str | None:
     """Get current user's UUID from session state."""
-    return st.session_state.get("legal_ai_user_id")
+    return st.session_state.get(SessionKeys.USER_ID)
 
 
-def get_current_user() -> str | None:
-    """Get current user's email (for backward compatibility with existing code)."""
-    return st.session_state.get("legal_ai_user_email")
+def get_current_user_email() -> str | None:
+    """Get current user's email from session state."""
+    return st.session_state.get(SessionKeys.USER_EMAIL)
 
 
 def get_current_user_role() -> str:
     """Get current user's role from session state. Returns 'viewer' if not signed in."""
-    return st.session_state.get("legal_ai_user_role", "viewer")
+    return st.session_state.get(SessionKeys.USER_ROLE, "viewer")
 
 
 def get_current_user_profile() -> dict | None:
@@ -86,21 +88,21 @@ def get_current_user_profile() -> dict | None:
 
     return {
         "user_id": get_current_user_id(),
-        "email": get_current_user(),
-        "full_name": st.session_state.get("legal_ai_user_full_name"),
-        "firm": st.session_state.get("legal_ai_user_firm"),
+        "email": get_current_user_email(),
+        "full_name": st.session_state.get(SessionKeys.USER_FULL_NAME),
+        "firm": st.session_state.get(SessionKeys.USER_FIRM),
         "role": get_current_user_role(),
     }
 
 
 def get_current_access_token() -> str | None:
     """Get current access token from session state."""
-    return st.session_state.get("legal_ai_access_token")
+    return st.session_state.get(SessionKeys.ACCESS_TOKEN)
 
 
 def get_current_refresh_token() -> str | None:
     """Get current refresh token from session state."""
-    return st.session_state.get("legal_ai_refresh_token")
+    return st.session_state.get(SessionKeys.REFRESH_TOKEN)
 
 
 def set_auth_tokens(
@@ -113,13 +115,13 @@ def set_auth_tokens(
     firm: str | None = None,
 ) -> None:
     """Store auth tokens and user profile in session state and browser cookie."""
-    st.session_state.legal_ai_user_id = user_id
-    st.session_state.legal_ai_user_email = email
-    st.session_state.legal_ai_access_token = access_token
-    st.session_state.legal_ai_refresh_token = refresh_token
-    st.session_state.legal_ai_user_role = role
-    st.session_state.legal_ai_user_full_name = full_name
-    st.session_state.legal_ai_user_firm = firm
+    st.session_state[SessionKeys.USER_ID] = user_id
+    st.session_state[SessionKeys.USER_EMAIL] = email
+    st.session_state[SessionKeys.ACCESS_TOKEN] = access_token
+    st.session_state[SessionKeys.REFRESH_TOKEN] = refresh_token
+    st.session_state[SessionKeys.USER_ROLE] = role
+    st.session_state[SessionKeys.USER_FULL_NAME] = full_name
+    st.session_state[SessionKeys.USER_FIRM] = firm
 
     # Also store in browser localStorage for persistence across page reloads
     browser_storage.store_auth_in_browser(
@@ -260,7 +262,7 @@ def refresh_access_token_if_needed() -> bool:
     try:
         if db.validate_refresh_token(user_id, refresh_token):
             new_access_token = jwt_utils.create_access_token(user_id)
-            st.session_state.legal_ai_access_token = new_access_token
+            st.session_state[SessionKeys.ACCESS_TOKEN] = new_access_token
             return True
     except Exception as exc:
         logger.warning("Error validating refresh token: %s", exc)
@@ -286,16 +288,16 @@ def sign_out() -> None:
 
     # Clear session state
     for key in (
-        "legal_ai_user_id",
-        "legal_ai_user_email",
-        "legal_ai_access_token",
-        "legal_ai_refresh_token",
-        "legal_ai_user_role",
-        "legal_ai_user_full_name",
-        "legal_ai_user_firm",
-        "legal_ai_session_id",
-        "messages",
-        "selected_session_id",
+        SessionKeys.USER_ID,
+        SessionKeys.USER_EMAIL,
+        SessionKeys.ACCESS_TOKEN,
+        SessionKeys.REFRESH_TOKEN,
+        SessionKeys.USER_ROLE,
+        SessionKeys.USER_FULL_NAME,
+        SessionKeys.USER_FIRM,
+        SessionKeys.SESSION_ID,
+        SessionKeys.MESSAGES,
+        SessionKeys.SELECTED_SESSION_ID,
     ):
         st.session_state.pop(key, None)
 
@@ -319,16 +321,16 @@ def get_or_create_session_id(user_id: str | None = None) -> str:
     if user_id is None:
         user_id = get_current_user_id()
 
-    if "legal_ai_session_id" not in st.session_state:
-        st.session_state.legal_ai_session_id = str(uuid.uuid4())
+    if SessionKeys.SESSION_ID not in st.session_state:
+        st.session_state[SessionKeys.SESSION_ID] = str(uuid.uuid4())
 
-    session_id = st.session_state.legal_ai_session_id
+    session_id = st.session_state[SessionKeys.SESSION_ID]
 
     # Upsert session with user_id
     db.upsert_session(
         session_id,
         user_id=user_id,
-        display_user=get_current_user() or "anonymous",
+        display_user=get_current_user_email() or "anonymous",
     )
 
     return session_id
@@ -342,15 +344,15 @@ def start_new_chat(user_id: str | None = None) -> str:
         user_id = get_current_user_id()
 
     session_id = str(uuid.uuid4())
-    st.session_state.legal_ai_session_id = session_id
-    st.session_state.messages = []
-    st.session_state.selected_session_id = session_id
+    st.session_state[SessionKeys.SESSION_ID] = session_id
+    st.session_state[SessionKeys.MESSAGES] = []
+    st.session_state[SessionKeys.SELECTED_SESSION_ID] = session_id
 
     # Upsert session with user_id
     db.upsert_session(
         session_id,
         user_id=user_id,
-        display_user=get_current_user() or "anonymous",
+        display_user=get_current_user_email() or "anonymous",
     )
 
     return session_id
@@ -361,13 +363,13 @@ def switch_to_session(session_id: str) -> None:
     db.ensure_db()
     user_id = get_current_user_id()
 
-    st.session_state.legal_ai_session_id = session_id
-    st.session_state.selected_session_id = session_id
+    st.session_state[SessionKeys.SESSION_ID] = session_id
+    st.session_state[SessionKeys.SELECTED_SESSION_ID] = session_id
 
     # Update session's user_id
     if user_id:
         db.upsert_session(
-            session_id, user_id=user_id, display_user=get_current_user() or "anonymous"
+            session_id, user_id=user_id, display_user=get_current_user_email() or "anonymous"
         )
 
 
@@ -411,13 +413,7 @@ def has_role(required_role: str) -> bool:
     Returns:
         True if user has the required role or higher
     """
-    role_hierarchy = {"viewer": 0, "editor": 1, "admin": 2}
-    if required_role not in role_hierarchy:
-        # Unknown role requirement must fail closed, not grant access.
-        return False
-    current = role_hierarchy.get(get_current_user_role(), -1)
-    required = role_hierarchy[required_role]
-    return current >= required
+    return rbac.role_at_least(get_current_user_role(), required_role)
 
 
 def require_role(required_role: str) -> bool:
@@ -450,7 +446,4 @@ def check_permission(user_id: str, required_role: str) -> bool:
     if not user:
         return False
 
-    role_hierarchy = {"viewer": 0, "editor": 1, "admin": 2}
-    user_level = role_hierarchy.get(user.get("role", "viewer"), -1)
-    required_level = role_hierarchy.get(required_role, -1)
-    return user_level >= required_level
+    return rbac.role_at_least(user.get("role", "viewer"), required_role)

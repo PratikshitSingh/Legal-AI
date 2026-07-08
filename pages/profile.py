@@ -5,6 +5,7 @@ import streamlit as st
 from legal_ai.auth import auth
 from legal_ai import db
 from legal_ai.auth import rbac
+from legal_ai.core.constants import SessionKeys
 
 # Initialize auth - restores session from browser storage
 auth.init_auth()
@@ -79,8 +80,8 @@ if st.button("💾 Save Changes", key="save_profile"):
 
         if success:
             # Update session state
-            st.session_state.legal_ai_user_full_name = full_name
-            st.session_state.legal_ai_user_firm = firm
+            st.session_state[SessionKeys.USER_FULL_NAME] = full_name
+            st.session_state[SessionKeys.USER_FIRM] = firm
             st.success("✅ Profile updated successfully!")
             st.rerun()
         else:
