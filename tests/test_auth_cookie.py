@@ -97,7 +97,7 @@ def test_init_auth_restores_from_browser_cookie(fake_auth_state, monkeypatch):
         "get_user_id_from_token_signature",
         lambda token: "user-456" if token == "cookie-access" else None,
     )
-    from legal_ai.db import db as db_module
+    from legal_ai import db as db_module
 
     monkeypatch.setattr(
         db_module,
@@ -170,7 +170,7 @@ def test_sign_out_clears_browser_cookie(fake_auth_state, monkeypatch):
     revoked = {}
     cleared = {}
 
-    monkeypatch.setattr(auth, "ensure_db", lambda: None)
+    monkeypatch.setattr(auth.db, "ensure_db", lambda: None)
     monkeypatch.setattr(
         auth.db, "revoke_refresh_tokens", lambda user_id: revoked.update({"user_id": user_id})
     )

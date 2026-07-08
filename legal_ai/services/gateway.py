@@ -5,9 +5,8 @@ legal queries with session_id to the query orchestrator.
 """
 
 from legal_ai.agent.agent import LegalChat
-from legal_ai.db import db
+from legal_ai import db
 from legal_ai.auth import jwt_utils
-from legal_ai.auth.auth import ensure_db
 
 _chats: dict[str, LegalChat] = {}
 
@@ -91,7 +90,7 @@ def route_query(
     if session_user_id and session_user_id != user_id:
         raise PermissionError("User does not own this session")
 
-    ensure_db()
+    db.ensure_db()
 
     # Hydrate the chat from the DB BEFORE logging the new question; otherwise
     # the question is loaded into history from the DB and then added again by

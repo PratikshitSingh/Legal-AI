@@ -28,7 +28,7 @@ if "pytest" in sys.modules:
             allow_module_level=True,
         )
 
-from legal_ai.db import db
+from legal_ai import db
 from legal_ai.auth import jwt_utils
 from legal_ai.services.email_service import send_magic_link_email
 
@@ -51,7 +51,7 @@ def test_user_creation():
     print("\n✓ Testing user creation...")
     try:
         email = "test@example.com"
-        user_id = db.create_user(email)
+        user_id = db.get_or_create_user(email)
         print(f"  ✓ User created: {user_id}")
 
         # Verify user was created
@@ -76,7 +76,7 @@ def test_user_profile_fields():
         firm = "Smith & Associates"
         role = "admin"
 
-        user_id = db.create_user(email, full_name=full_name, firm=firm, role=role)
+        user_id = db.get_or_create_user(email, full_name=full_name, firm=firm, role=role)
         print(f"  ✓ User created with profile: {user_id}")
 
         # Fetch user by ID
@@ -154,8 +154,8 @@ def test_get_users_by_role(viewer_email: str, editor_email: str):
     print("\n✓ Testing get users by role...")
     try:
         # Create users with different roles
-        viewer_id = db.create_user(viewer_email, role="viewer")
-        editor_id = db.create_user(editor_email, role="editor")
+        viewer_id = db.get_or_create_user(viewer_email, role="viewer")
+        editor_id = db.get_or_create_user(editor_email, role="editor")
 
         # Get viewers
         viewers = db.get_users_by_role("viewer")

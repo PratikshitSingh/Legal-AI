@@ -5,7 +5,7 @@ import pytest
 from uuid import uuid4
 
 from legal_ai.services import embed
-from legal_ai.db import db
+from legal_ai import db
 
 
 class TestDocumentHash:

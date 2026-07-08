@@ -159,7 +159,7 @@ def check_duplicate_document(document_name: str, content_hash: str) -> dict:
             'new_chunks_estimate': int (estimated new chunks for this document)
         }
     """
-    from legal_ai.db import db
+    from legal_ai import db
 
     collection = vector_store.get_collection()
 
@@ -330,7 +330,7 @@ def ingest_custom_document(
             'existing_chunks': int,
         }
     """
-    from legal_ai.db import db
+    from legal_ai import db
 
     try:
         # Step 1: Extract text

@@ -7,22 +7,13 @@ from urllib.parse import quote
 
 import streamlit as st
 
-from legal_ai.db import db
+from legal_ai import db
 from legal_ai.services.email_service import send_magic_link_email
 from legal_ai.core import settings
 from . import jwt_utils
 from . import browser_storage
 
 logger = logging.getLogger(__name__)
-
-_db_initialized = False
-
-
-def ensure_db() -> None:
-    global _db_initialized
-    if not _db_initialized:
-        db.init_db()
-        _db_initialized = True
 
 
 # ============================================================================
@@ -158,7 +149,7 @@ def request_magic_link(email: str, app_url: str = None) -> dict[str, str]:
         return {"status": "error", "message": "Email cannot be empty"}
 
     try:
-        ensure_db()
+        db.ensure_db()
 
         # Generate magic link token
         magic_token = secrets.token_urlsafe(32)
@@ -205,7 +196,7 @@ def verify_magic_link_token(email: str, token: str) -> dict:
         }
     """
     try:
-        ensure_db()
+        db.ensure_db()
 
         # Normalize email
         email = (email or "").strip().lower()
@@ -216,7 +207,7 @@ def verify_magic_link_token(email: str, token: str) -> dict:
             return {"status": "error", "message": "Invalid or expired magic link"}
 
         # Create or get user (defaults to 'viewer' role for new users)
-        user_id = db.create_user(email)
+        user_id = db.get_or_create_user(email)
         db.update_user_last_login(user_id)
 
         # Fetch full user profile (includes role, full_name, firm)
@@ -288,7 +279,7 @@ def sign_out() -> None:
     user_id = get_current_user_id()
     if user_id:
         try:
-            ensure_db()
+            db.ensure_db()
             db.revoke_refresh_tokens(user_id)
         except Exception as e:
             logger.warning("Error revoking tokens: %s", e)
@@ -322,7 +313,7 @@ def sign_out() -> None:
 
 def get_or_create_session_id(user_id: str | None = None) -> str:
     """Create or get a chat session tied to the user."""
-    ensure_db()
+    db.ensure_db()
 
     # Use provided user_id or current session state
     if user_id is None:
@@ -345,7 +336,7 @@ def get_or_create_session_id(user_id: str | None = None) -> str:
 
 def start_new_chat(user_id: str | None = None) -> str:
     """New session for the current user; clears in-memory UI messages."""
-    ensure_db()
+    db.ensure_db()
 
     if user_id is None:
         user_id = get_current_user_id()
@@ -367,7 +358,7 @@ def start_new_chat(user_id: str | None = None) -> str:
 
 def switch_to_session(session_id: str) -> None:
     """Switch to an existing chat session."""
-    ensure_db()
+    db.ensure_db()
     user_id = get_current_user_id()
 
     st.session_state.legal_ai_session_id = session_id
@@ -382,7 +373,7 @@ def switch_to_session(session_id: str) -> None:
 
 def list_past_chats(user_id: str | None = None) -> list[dict]:
     """List past chat sessions for the current user."""
-    ensure_db()
+    db.ensure_db()
 
     if user_id is None:
         user_id = get_current_user_id()
@@ -454,7 +445,7 @@ def check_permission(user_id: str, required_role: str) -> bool:
     Returns:
         True if user has the required role or higher
     """
-    ensure_db()
+    db.ensure_db()
     user = db.get_user_by_id(user_id)
     if not user:
         return False

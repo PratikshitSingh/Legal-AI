@@ -41,9 +41,9 @@ def test_signed_out_shows_sign_in_form(monkeypatch):
 
 def test_signed_in_renders_chat(monkeypatch):
     """With a valid session, the sidebar and chat input must render."""
-    from legal_ai.auth import auth, jwt_utils
+    from legal_ai.auth import jwt_utils
     from legal_ai.core import tracing
-    from legal_ai.db import db
+    from legal_ai import db
     from legal_ai.services import gateway, vector_store
 
     user_id = "11111111-1111-1111-1111-111111111111"
@@ -58,7 +58,7 @@ def test_signed_in_renders_chat(monkeypatch):
     )
     monkeypatch.setattr(vector_store, "collection_has_documents", lambda: True)
     monkeypatch.setattr(vector_store, "use_chroma_cloud", lambda: False)
-    monkeypatch.setattr(auth, "ensure_db", lambda: None)
+    monkeypatch.setattr(db, "ensure_db", lambda: None)
     monkeypatch.setattr(db, "init_db", lambda: None)
     monkeypatch.setattr(db, "upsert_session", lambda *a, **k: None)
     monkeypatch.setattr(db, "get_session_messages", lambda sid: [])
@@ -95,9 +95,8 @@ def test_signed_in_renders_chat(monkeypatch):
 
 def test_expired_session_signs_out(monkeypatch):
     """If token refresh fails, the app must warn and sign the user out."""
-    from legal_ai.auth import auth
     from legal_ai.core import tracing
-    from legal_ai.db import db
+    from legal_ai import db
 
     monkeypatch.setattr(tracing, "setup_langfuse_tracing", lambda: None)
     monkeypatch.setattr(
@@ -105,7 +104,7 @@ def test_expired_session_signs_out(monkeypatch):
         "get_langfuse_tracing_status",
         lambda: {"enabled": False, "message": ""},
     )
-    monkeypatch.setattr(auth, "ensure_db", lambda: None)
+    monkeypatch.setattr(db, "ensure_db", lambda: None)
     monkeypatch.setattr(db, "revoke_refresh_tokens", lambda uid: None)
     # Any junk token fails validation -> refresh path -> DB says invalid
     monkeypatch.setattr(db, "validate_refresh_token", lambda uid, tok: False)
@@ -137,7 +136,7 @@ def test_magic_link_invalid_token_shows_error(monkeypatch):
         "get_langfuse_tracing_status",
         lambda: {"enabled": False, "message": ""},
     )
-    monkeypatch.setattr(auth, "ensure_db", lambda: None)
+    monkeypatch.setattr(auth.db, "ensure_db", lambda: None)
     monkeypatch.setattr(auth.db, "validate_magic_link", lambda email, token: False)
 
     at = _make_apptest()

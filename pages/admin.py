@@ -4,7 +4,7 @@ import streamlit as st
 import pandas as pd
 
 from legal_ai.auth import auth
-from legal_ai.db import db
+from legal_ai import db
 from legal_ai.auth import rbac
 from legal_ai.services import embed
 

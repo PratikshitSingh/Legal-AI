@@ -3,7 +3,7 @@
 import streamlit as st
 
 from legal_ai.auth.auth import is_signed_in, init_auth
-from legal_ai.db.db import get_jurisdiction_tree
+from legal_ai import db
 from legal_ai.services.jurisdiction_retriever import JurisdictionAwareRetriever
 
 # Initialize auth - restores session from browser storage
@@ -21,7 +21,7 @@ st.title("⚖️ Compare Jurisdictions")
 st.caption("Search for regulations side-by-side across different jurisdictions")
 
 # Get all jurisdictions
-jurisdictions = get_jurisdiction_tree()
+jurisdictions = db.get_jurisdiction_tree()
 jurisdiction_map = {j["name"]: j["jurisdiction_id"] for j in jurisdictions}
 
 col1, col2 = st.columns(2)

@@ -231,7 +231,7 @@ def restore_auth_in_session() -> bool:
     firm = auth_data.get("firm")
     email = auth_data.get("email")
     try:
-        from legal_ai.db import db
+        from legal_ai import db
 
         user = db.get_user_by_id(token_user_id)
         if user:

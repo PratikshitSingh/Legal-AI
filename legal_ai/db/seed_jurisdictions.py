@@ -2,7 +2,7 @@
 
 import json
 
-from legal_ai.db.db import get_engine
+from legal_ai.db import get_engine
 from sqlalchemy import text
 
 

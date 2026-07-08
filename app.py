@@ -28,12 +28,7 @@ from legal_ai.auth.auth import (
     init_auth,
 )
 from legal_ai.auth import browser_storage
-from legal_ai.db.db import (
-    get_session_messages,
-    get_jurisdiction_tree,
-    get_user_jurisdictions,
-    update_user_jurisdictions,
-)
+from legal_ai import db
 from legal_ai.services.gateway import clear_chat_cache, route_query
 
 
@@ -41,7 +36,7 @@ CHAT_UI_KEY = "chat1"
 
 
 def load_ui_messages(session_id: str) -> None:
-    rows = get_session_messages(session_id)
+    rows = db.get_session_messages(session_id)
     ST.session_state.messages = [
         {"id": CHAT_UI_KEY, "role": row["role"], "content": row["content"]} for row in rows
     ]
@@ -194,7 +189,7 @@ def render_sidebar(session_id: str) -> None:
         try:
             # Get user's current jurisdictions
             user_id = get_current_user_id()
-            current_jurisdictions = get_user_jurisdictions(user_id)
+            current_jurisdictions = db.get_user_jurisdictions(user_id)
             current_ids = (
                 [j["jurisdiction_id"] for j in current_jurisdictions]
                 if current_jurisdictions
@@ -202,7 +197,7 @@ def render_sidebar(session_id: str) -> None:
             )
 
             # Get jurisdiction tree for selector
-            jurisdictions = get_jurisdiction_tree()
+            jurisdictions = db.get_jurisdiction_tree()
 
             # Create jurisdiction options
             jurisdiction_options = {j["name"]: j["jurisdiction_id"] for j in jurisdictions}
@@ -221,7 +216,7 @@ def render_sidebar(session_id: str) -> None:
                 if ST.button(
                     "✅ Save Preferences", use_container_width=True, key="save_jurisdictions"
                 ):
-                    update_user_jurisdictions(user_id, selected_ids)
+                    db.update_user_jurisdictions(user_id, selected_ids)
                     ST.success("Jurisdiction preferences saved!")
                     ST.rerun()
 
