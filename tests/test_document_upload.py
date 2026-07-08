@@ -116,7 +116,9 @@ class TestEmbeddingIntegration:
         text = "This is a test document.\n" * 100  # Create enough text for multiple chunks
 
         # Count initial chunks
-        collection = embed._get_collection()
+        from legal_ai.services import vector_store
+
+        collection = vector_store.get_collection()
         initial_count = collection.count()
 
         # Embed text

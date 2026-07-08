@@ -12,7 +12,8 @@ from pathlib import Path
 # Runnable as a plain file from any CWD, so the repo root must be on sys.path.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from legal_ai.core import utils
+from legal_ai.core import tracing
+from legal_ai.core.logging import configure_logging
 from legal_ai.services.embed import run_ingest
 
 if __name__ == "__main__":
@@ -26,10 +27,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    utils.setup_langfuse_tracing()
+    configure_logging()
+    tracing.setup_langfuse_tracing()
     try:
         run_ingest(force=args.force)
     finally:
         # Flush traces before exit — batch processes have no server lifecycle
         # to do it for them.
-        utils.flush_langfuse_traces()
+        tracing.flush_langfuse_traces()

@@ -1,6 +1,6 @@
 """Jurisdiction-aware document retrieval service."""
 
-from legal_ai.services.embed import _get_collection
+from legal_ai.services import vector_store
 
 
 class JurisdictionAwareRetriever:
@@ -8,7 +8,7 @@ class JurisdictionAwareRetriever:
 
     def __init__(self):
         """Initialize retriever with Chroma collection."""
-        self.collection = _get_collection()
+        self.collection = vector_store.get_collection()
 
     def _build_jurisdiction_filter(
         self, jurisdiction_ids: list[str], include_parent: bool = True

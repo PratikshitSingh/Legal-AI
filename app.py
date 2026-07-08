@@ -9,7 +9,8 @@ configure_logging()
 import streamlit as ST
 from streamlit.components.v1 import html as components_html
 
-from legal_ai.core import utils
+from legal_ai.core import tracing
+from legal_ai.services import vector_store
 from legal_ai.auth.auth import (
     get_or_create_session_id,
     get_current_user,
@@ -263,7 +264,7 @@ def render_sidebar(session_id: str) -> None:
                     load_ui_messages(sid)
                     ST.rerun()
 
-        chroma_mode = "Chroma Cloud" if utils.use_chroma_cloud() else "local"
+        chroma_mode = "Chroma Cloud" if vector_store.use_chroma_cloud() else "local"
         ST.divider()
         ST.caption(f"Session: {session_id[:8]}… · Vector store: {chroma_mode}")
 
@@ -317,7 +318,7 @@ if __name__ == "__main__":
         pass
 
     # Initialize tracing (LangFuse)
-    utils.setup_langfuse_tracing()
+    tracing.setup_langfuse_tracing()
 
     ST.title("Legal-AI")
     ST.caption("EU AI Act RAG assistant — multi-turn conversational retrieval")
@@ -359,7 +360,7 @@ if __name__ == "__main__":
         sign_out()
         ST.rerun()
 
-    if not utils.chroma_collection_has_documents():
+    if not vector_store.collection_has_documents():
         ST.error(
             "Vector store is empty. Run offline ingest first:\n\n"
             "```bash\npython scripts/ingest.py\n```\n\n"

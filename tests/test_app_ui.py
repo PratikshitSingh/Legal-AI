@@ -19,11 +19,11 @@ def _make_apptest() -> AppTest:
 
 def test_signed_out_shows_sign_in_form(monkeypatch):
     """A fresh visitor (no cookie, no session) must see the sign-in form."""
-    from legal_ai.core import utils
+    from legal_ai.core import tracing
 
-    monkeypatch.setattr(utils, "setup_langfuse_tracing", lambda: None)
+    monkeypatch.setattr(tracing, "setup_langfuse_tracing", lambda: None)
     monkeypatch.setattr(
-        utils,
+        tracing,
         "get_langfuse_tracing_status",
         lambda: {"enabled": False, "message": ""},
     )
@@ -42,22 +42,22 @@ def test_signed_out_shows_sign_in_form(monkeypatch):
 def test_signed_in_renders_chat(monkeypatch):
     """With a valid session, the sidebar and chat input must render."""
     from legal_ai.auth import auth, jwt_utils
-    from legal_ai.core import utils
+    from legal_ai.core import tracing
     from legal_ai.db import db
-    from legal_ai.services import gateway
+    from legal_ai.services import gateway, vector_store
 
     user_id = "11111111-1111-1111-1111-111111111111"
     token = jwt_utils.create_access_token(user_id)
 
     # Stub everything that needs the network
-    monkeypatch.setattr(utils, "setup_langfuse_tracing", lambda: None)
+    monkeypatch.setattr(tracing, "setup_langfuse_tracing", lambda: None)
     monkeypatch.setattr(
-        utils,
+        tracing,
         "get_langfuse_tracing_status",
         lambda: {"enabled": False, "message": ""},
     )
-    monkeypatch.setattr(utils, "chroma_collection_has_documents", lambda: True)
-    monkeypatch.setattr(utils, "use_chroma_cloud", lambda: False)
+    monkeypatch.setattr(vector_store, "collection_has_documents", lambda: True)
+    monkeypatch.setattr(vector_store, "use_chroma_cloud", lambda: False)
     monkeypatch.setattr(auth, "ensure_db", lambda: None)
     monkeypatch.setattr(db, "init_db", lambda: None)
     monkeypatch.setattr(db, "upsert_session", lambda *a, **k: None)
@@ -96,12 +96,12 @@ def test_signed_in_renders_chat(monkeypatch):
 def test_expired_session_signs_out(monkeypatch):
     """If token refresh fails, the app must warn and sign the user out."""
     from legal_ai.auth import auth
-    from legal_ai.core import utils
+    from legal_ai.core import tracing
     from legal_ai.db import db
 
-    monkeypatch.setattr(utils, "setup_langfuse_tracing", lambda: None)
+    monkeypatch.setattr(tracing, "setup_langfuse_tracing", lambda: None)
     monkeypatch.setattr(
-        utils,
+        tracing,
         "get_langfuse_tracing_status",
         lambda: {"enabled": False, "message": ""},
     )
@@ -129,11 +129,11 @@ def test_expired_session_signs_out(monkeypatch):
 def test_magic_link_invalid_token_shows_error(monkeypatch):
     """Visiting with a bad magic link shows an error, not a crash."""
     from legal_ai.auth import auth
-    from legal_ai.core import utils
+    from legal_ai.core import tracing
 
-    monkeypatch.setattr(utils, "setup_langfuse_tracing", lambda: None)
+    monkeypatch.setattr(tracing, "setup_langfuse_tracing", lambda: None)
     monkeypatch.setattr(
-        utils,
+        tracing,
         "get_langfuse_tracing_status",
         lambda: {"enabled": False, "message": ""},
     )

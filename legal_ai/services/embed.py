@@ -2,17 +2,19 @@
 
 import argparse
 import hashlib
+import logging
 import time
 from pathlib import Path
 from uuid import UUID
 
-import chromadb
 import fitz
 import requests
-from chromadb.utils import embedding_functions
 from tqdm import tqdm
 
-from legal_ai.core import utils, constants
+from legal_ai.core import constants, tracing
+from legal_ai.services import vector_store
+
+logger = logging.getLogger(__name__)
 
 # Gemini free tier: ~100 embed requests/min; each doc in a batch counts as one request
 EMBED_BATCH_SIZE = 50
@@ -159,7 +161,7 @@ def check_duplicate_document(document_name: str, content_hash: str) -> dict:
     """
     from legal_ai.db import db
 
-    collection = _get_collection()
+    collection = vector_store.get_collection()
 
     # Query Chroma collection for existing document with same name
     existing_chunks = 0
@@ -194,33 +196,11 @@ def check_duplicate_document(document_name: str, content_hash: str) -> dict:
     }
 
 
-def _get_collection(*, force: bool = False):
-    sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name="all-mpnet-base-v2",
-    )
-    if utils.use_chroma_cloud():
-        client = utils.get_chroma_client()
-    else:
-        client = chromadb.PersistentClient(path=utils.DB_FOLDER)
-
-    if force:
-        try:
-            client.delete_collection(utils.COLLECTION_NAME)
-            print(f"Deleted collection {utils.COLLECTION_NAME}")
-        except Exception:
-            pass
-
-    return client.get_or_create_collection(
-        name=utils.COLLECTION_NAME,
-        embedding_function=sentence_transformer_ef,
-    )
-
-
 def embed_text_in_chromadb(
     text: str,
     document_name: str,
     document_description: str,
-    persist_directory: str = utils.DB_FOLDER,
+    persist_directory: str = constants.DB_FOLDER,
     *,
     force: bool = False,
     uploaded_by_user_id: UUID | None = None,
@@ -257,11 +237,11 @@ def embed_text_in_chromadb(
 
     metadatas = [metadata] * len(documents)
 
-    _ = persist_directory  # local path used via utils.DB_FOLDER in _get_collection
-    collection = _get_collection(force=force)
+    _ = persist_directory  # local path comes from constants.DB_FOLDER in vector_store
+    collection = vector_store.get_collection(force=force)
 
     count = collection.count()
-    print(f"Collection already contains {count} documents")
+    logger.info("Collection already contains %d documents", count)
     ids = [str(i) for i in range(count, count + len(documents))]
 
     # Filter out duplicate chunks if requested
@@ -277,7 +257,7 @@ def embed_text_in_chromadb(
                 filtered_metadatas.append(doc_metadata)
 
         if not filtered_documents:
-            print("All chunks already exist in collection. Skipping embedding.")
+            logger.info("All chunks already exist in collection. Skipping embedding.")
             return 0
 
         skipped = len(ids) - len(filtered_ids)
@@ -285,7 +265,7 @@ def embed_text_in_chromadb(
         documents = filtered_documents
         metadatas = filtered_metadatas
         if skipped:
-            print(f"Skipping {skipped} duplicate chunks")
+            logger.info("Skipping %d duplicate chunks", skipped)
 
     chunks_added = 0
     for i in tqdm(
@@ -305,7 +285,7 @@ def embed_text_in_chromadb(
                 break
             except ValueError as e:
                 if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                    print("Rate limited — waiting before retry…")
+                    logger.warning("Rate limited — waiting %ds before retry", EMBED_BATCH_DELAY_SEC)
                     time.sleep(EMBED_BATCH_DELAY_SEC)
                 else:
                     raise
@@ -313,7 +293,7 @@ def embed_text_in_chromadb(
             time.sleep(EMBED_BATCH_DELAY_SEC)
 
     new_count = collection.count()
-    print(f"Added {chunks_added} new chunks (collection now has {new_count} total)")
+    logger.info("Added %d new chunks (collection now has %d total)", chunks_added, new_count)
     return chunks_added
 
 
@@ -354,18 +334,17 @@ def ingest_custom_document(
 
     try:
         # Step 1: Extract text
-        print(f"Extracting text from {file_type.upper()}…")
+        logger.info("Extracting text from %s", file_type.upper())
         text = extract_text_from_file(file_bytes, file_type)
-        print(f"Extracted {len(text)} characters")
+        logger.info("Extracted %d characters", len(text))
 
         # Step 2: Compute hash
         content_hash = get_document_hash(text)
-        print(f"Content hash: {content_hash}")
+        logger.debug("Content hash: %s", content_hash)
 
         # Step 3: Preflight check for duplicates
-        print("Checking for duplicates…")
         dup_check = check_duplicate_document(document_name, content_hash)
-        print(f"Duplicate check result: {dup_check}")
+        logger.info("Duplicate check result: %s", dup_check)
 
         # Step 4: Exact duplicates are NOT re-embedded and NOT re-recorded.
         # (Previously the skip flag was passed with existing_chunk_ids=None,
@@ -387,7 +366,7 @@ def ingest_custom_document(
             }
 
         # Step 5: Embed new content
-        print("Embedding into Chroma…")
+        logger.info("Embedding into Chroma…")
         chunks_added = embed_text_in_chromadb(
             text,
             document_name,
@@ -396,7 +375,7 @@ def ingest_custom_document(
         )
 
         # Step 6: Record in documents table
-        print("Recording in documents table…")
+        logger.info("Recording in documents table…")
         doc_record = db.create_document_record(
             name=document_name,
             description=document_description,
@@ -421,7 +400,7 @@ def ingest_custom_document(
 
     except Exception as e:
         error_msg = f"❌ Error ingesting document: {str(e)}"
-        print(error_msg)
+        logger.exception("Error ingesting document %s", document_name)
         return {
             "success": False,
             "message": error_msg,
@@ -437,38 +416,41 @@ DOCUMENT_DESCRIPTION = "Artificial Intelligence Act"
 
 
 def ingest_complete() -> bool:
-    if not utils.chroma_collection_has_documents():
+    if not vector_store.collection_has_documents():
         return False
-    collection = _get_collection()
+    collection = vector_store.get_collection()
     return collection.count() >= INGEST_MIN_CHUNKS
 
 
 def run_ingest(*, force: bool = False) -> None:
     if not force and ingest_complete():
-        print("Collection already fully ingested. Use --force to re-ingest.")
+        logger.info("Collection already fully ingested. Use --force to re-ingest.")
         return
 
-    print("Fetching EU AI Act PDF…")
+    logger.info("Fetching EU AI Act PDF…")
     pdf_data = fetch_pdf_bytes()
-    print(f"PDF ready ({len(pdf_data)} bytes at {constants.EUROPEAN_ACT_CACHE_PATH})")
+    logger.info("PDF ready (%d bytes at %s)", len(pdf_data), constants.EUROPEAN_ACT_CACHE_PATH)
 
-    print("Extracting text…")
+    logger.info("Extracting text…")
     text = _pdf_bytes_to_text(pdf_data)
-    print(f"Extracted {len(text)} characters")
+    logger.info("Extracted %d characters", len(text))
 
-    print("Embedding into Chroma…")
+    logger.info("Embedding into Chroma…")
     embed_text_in_chromadb(
         text,
         DOCUMENT_NAME,
         DOCUMENT_DESCRIPTION,
         force=force,
     )
-    print("Ingest complete.")
+    logger.info("Ingest complete.")
 
 
 if __name__ == "__main__":
-    # Initialize tracing (LangFuse) - best practice for batch processes
-    utils.setup_langfuse_tracing()
+    from legal_ai.core.logging import configure_logging
+
+    configure_logging()
+    # Initialize tracing (Langfuse) so batch embedding runs are traced too
+    tracing.setup_langfuse_tracing()
 
     try:
         parser = argparse.ArgumentParser(description="Download EU AI Act PDF and embed into Chroma")
@@ -480,5 +462,6 @@ if __name__ == "__main__":
         args = parser.parse_args()
         run_ingest(force=args.force)
     finally:
-        # Best practice: flush traces before script exit (batch process)
-        utils.flush_langfuse_traces()
+        # Flush traces before script exit — batch processes have no server
+        # lifecycle to do it for them.
+        tracing.flush_langfuse_traces()

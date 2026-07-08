@@ -1,7 +1,10 @@
 """Email service for sending magic links."""
 
+import logging
 import os
 from abc import ABC, abstractmethod
+
+logger = logging.getLogger(__name__)
 
 
 class EmailProvider(ABC):
@@ -45,7 +48,7 @@ class SendGridEmailProvider(EmailProvider):
             response = sg.send(message)
             return 200 <= response.status_code < 300
         except Exception as e:
-            print(f"SendGrid error: {e}")
+            logger.error("SendGrid error: %s", e)
             return False
 
 

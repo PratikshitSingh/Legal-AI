@@ -28,7 +28,8 @@ try:
 finally:
     sys.stderr = old_stderr
 
-from legal_ai.core import constants, settings, utils
+from legal_ai.core import constants, settings, tracing
+from legal_ai.services import vector_store
 
 
 class LegalChat:
@@ -52,11 +53,11 @@ class LegalChat:
             api_key=gemini_key,
         )
 
-        client = utils.get_chroma_client()
+        client = vector_store.get_chroma_client()
 
         db = Chroma(
             client=client,
-            collection_name=utils.COLLECTION_NAME,
+            collection_name=constants.COLLECTION_NAME,
             embedding_function=embeddings,
         )
         retriever = db.as_retriever(search_kwargs={"k": app_settings.retrieval_top_k})
@@ -142,7 +143,7 @@ class LegalChat:
         Returns:
             Assistant's answer (RAG-enhanced with retrieved context)
         """
-        callbacks = utils.get_langfuse_callback(
+        callbacks = tracing.get_langfuse_callback(
             trace_name="legal-rag-query",
             user_id=user_id,
             session_id=self.session_id,

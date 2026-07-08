@@ -139,9 +139,9 @@ def migrate_eu_ai_act() -> None:
     # Update Chroma collection metadata
     print("\n📦 Updating Chroma chunks with new metadata...")
     try:
-        from legal_ai.services.embed import _get_collection
+        from legal_ai.services import vector_store
 
-        collection = _get_collection()
+        collection = vector_store.get_collection()
 
         # Get all chunks with the EU AI Act name
         results = collection.get(where={"name": {"$eq": "Artificial Intelligence Act"}})

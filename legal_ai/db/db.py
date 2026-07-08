@@ -2,12 +2,15 @@
 
 import hashlib
 import json
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache
@@ -854,8 +857,8 @@ def create_document_record(
             )
 
         return dict(result) if result else None
-    except Exception as e:
-        print(f"Error creating document record: {e}")
+    except Exception:
+        logger.exception("Error creating document record")
         return None
 
 
@@ -960,8 +963,8 @@ def log_document_audit(
                     "details": json.dumps(details),
                 },
             )
-    except Exception as e:
-        print(f"Error logging document audit: {e}")
+    except Exception:
+        logger.exception("Error logging document audit")
 
 
 # ============================================================================
@@ -1085,6 +1088,6 @@ def update_user_jurisdictions(user_id: str, jurisdiction_ids: list[str]) -> bool
                 )
 
         return True
-    except Exception as e:
-        print(f"Error updating user jurisdictions: {e}")
+    except Exception:
+        logger.exception("Error updating user jurisdictions")
         return False

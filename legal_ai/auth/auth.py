@@ -1,5 +1,6 @@
 """Auth layer: JWT + magic links + Neon Postgres session persistence."""
 
+import logging
 import secrets
 import uuid
 from urllib.parse import quote
@@ -11,6 +12,8 @@ from legal_ai.services.email_service import send_magic_link_email
 from legal_ai.core import settings
 from . import jwt_utils
 from . import browser_storage
+
+logger = logging.getLogger(__name__)
 
 _db_initialized = False
 
@@ -269,7 +272,7 @@ def refresh_access_token_if_needed() -> bool:
             st.session_state.legal_ai_access_token = new_access_token
             return True
     except Exception as exc:
-        print(f"Error validating refresh token: {exc}")
+        logger.warning("Error validating refresh token: %s", exc)
 
     # Refresh token invalid/expired or DB unavailable
     return False
@@ -288,7 +291,7 @@ def sign_out() -> None:
             ensure_db()
             db.revoke_refresh_tokens(user_id)
         except Exception as e:
-            print(f"Error revoking tokens: {e}")
+            logger.warning("Error revoking tokens: %s", e)
 
     # Clear session state
     for key in (

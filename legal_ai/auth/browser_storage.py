@@ -1,6 +1,7 @@
 """Browser cookie utilities for persistent session management."""
 
 import json
+import logging
 from urllib.parse import quote, unquote
 
 import streamlit as st
@@ -8,6 +9,7 @@ from streamlit.components.v1 import html
 
 from . import jwt_utils
 
+logger = logging.getLogger(__name__)
 
 AUTH_COOKIE_NAME = "legal_ai_auth"
 
@@ -239,7 +241,7 @@ def restore_auth_in_session() -> bool:
             email = user.get("email")
     except Exception as exc:
         # DB unavailable: fall back to least privilege.
-        print(f"[auth] Could not load user profile during restore: {exc}")
+        logger.warning("Could not load user profile during restore: %s", exc)
 
     st.session_state.legal_ai_user_id = token_user_id
     st.session_state.legal_ai_user_email = email
