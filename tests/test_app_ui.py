@@ -23,7 +23,8 @@ def test_signed_out_shows_sign_in_form(monkeypatch):
 
     monkeypatch.setattr(utils, "setup_langfuse_tracing", lambda: None)
     monkeypatch.setattr(
-        utils, "get_langfuse_tracing_status",
+        utils,
+        "get_langfuse_tracing_status",
         lambda: {"enabled": False, "message": ""},
     )
 
@@ -51,7 +52,8 @@ def test_signed_in_renders_chat(monkeypatch):
     # Stub everything that needs the network
     monkeypatch.setattr(utils, "setup_langfuse_tracing", lambda: None)
     monkeypatch.setattr(
-        utils, "get_langfuse_tracing_status",
+        utils,
+        "get_langfuse_tracing_status",
         lambda: {"enabled": False, "message": ""},
     )
     monkeypatch.setattr(utils, "chroma_collection_has_documents", lambda: True)
@@ -63,10 +65,17 @@ def test_signed_in_renders_chat(monkeypatch):
     monkeypatch.setattr(db, "get_user_sessions", lambda uid, limit=50: [])
     monkeypatch.setattr(db, "get_jurisdiction_tree", lambda parent_code=None: [])
     monkeypatch.setattr(db, "get_user_jurisdictions", lambda uid: [])
-    monkeypatch.setattr(db, "get_user_by_id", lambda uid: {
-        "user_id": uid, "email": "tester@example.com", "role": "viewer",
-        "full_name": "Tester", "firm": None,
-    })
+    monkeypatch.setattr(
+        db,
+        "get_user_by_id",
+        lambda uid: {
+            "user_id": uid,
+            "email": "tester@example.com",
+            "role": "viewer",
+            "full_name": "Tester",
+            "firm": None,
+        },
+    )
     monkeypatch.setattr(gateway, "route_query", lambda **kw: "stubbed answer")
 
     at = _make_apptest()
@@ -92,7 +101,8 @@ def test_expired_session_signs_out(monkeypatch):
 
     monkeypatch.setattr(utils, "setup_langfuse_tracing", lambda: None)
     monkeypatch.setattr(
-        utils, "get_langfuse_tracing_status",
+        utils,
+        "get_langfuse_tracing_status",
         lambda: {"enabled": False, "message": ""},
     )
     monkeypatch.setattr(auth, "ensure_db", lambda: None)
@@ -123,13 +133,12 @@ def test_magic_link_invalid_token_shows_error(monkeypatch):
 
     monkeypatch.setattr(utils, "setup_langfuse_tracing", lambda: None)
     monkeypatch.setattr(
-        utils, "get_langfuse_tracing_status",
+        utils,
+        "get_langfuse_tracing_status",
         lambda: {"enabled": False, "message": ""},
     )
     monkeypatch.setattr(auth, "ensure_db", lambda: None)
-    monkeypatch.setattr(
-        auth.db, "validate_magic_link", lambda email, token: False
-    )
+    monkeypatch.setattr(auth.db, "validate_magic_link", lambda email, token: False)
 
     at = _make_apptest()
     at.query_params["token"] = "bogus-token"

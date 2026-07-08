@@ -117,14 +117,14 @@ def get_document_hash(text: str) -> str:
 
 def extract_text_from_file(file_bytes: bytes, file_type: str) -> str:
     """Extract text from uploaded file (PDF or TXT).
-    
+
     Args:
         file_bytes: Raw file content
         file_type: File type ('pdf' or 'txt')
-    
+
     Returns:
         Extracted text string
-    
+
     Raises:
         ValueError: If file type unsupported or extraction fails
     """
@@ -141,14 +141,14 @@ def extract_text_from_file(file_bytes: bytes, file_type: str) -> str:
 
 def check_duplicate_document(document_name: str, content_hash: str) -> dict:
     """Check if document already exists (preflight validation).
-    
+
     Queries Chroma collection metadata for existing document with same name,
     then checks Postgres documents table for exact name+hash match.
-    
+
     Args:
         document_name: Name of document to check
         content_hash: MD5 hash of document content
-    
+
     Returns:
         {
             'is_duplicate': bool,
@@ -158,21 +158,21 @@ def check_duplicate_document(document_name: str, content_hash: str) -> dict:
         }
     """
     from legal_ai.db import db
-    
+
     collection = _get_collection()
-    
+
     # Query Chroma collection for existing document with same name
     existing_chunks = 0
     try:
         results = collection.get(
             where={"name": {"$eq": document_name}},
-            include=[]  # Only count, don't fetch data
+            include=[],  # Only count, don't fetch data
         )
         existing_chunks = len(results.get("ids", [])) if results else 0
     except Exception:
         # Chroma query might not support exact equality; try anyway
         pass
-    
+
     # Query Postgres documents table for exact name+hash match
     existing_exact_match = False
     try:
@@ -181,14 +181,16 @@ def check_duplicate_document(document_name: str, content_hash: str) -> dict:
     except Exception:
         # DB might not have documents table yet
         pass
-    
+
     is_duplicate = existing_exact_match or (existing_chunks > 0)
-    
+
     return {
         "is_duplicate": is_duplicate,
         "existing_chunks": existing_chunks,
         "existing_exact_match": existing_exact_match,
-        "new_chunks_estimate": 0 if existing_exact_match else -1,  # -1 means unknown until we process
+        "new_chunks_estimate": 0
+        if existing_exact_match
+        else -1,  # -1 means unknown until we process
     }
 
 
@@ -226,7 +228,7 @@ def embed_text_in_chromadb(
     existing_chunk_ids: set[str] | None = None,
 ) -> int:
     """Embed text into Chroma DB with optional duplicate chunk skipping.
-    
+
     Args:
         text: Text content to embed
         document_name: Name of document
@@ -236,13 +238,11 @@ def embed_text_in_chromadb(
         uploaded_by_user_id: UUID of user uploading document (for audit)
         skip_duplicate_chunks: If True, skip chunks already in collection
         existing_chunk_ids: Set of chunk IDs that already exist (for skipping)
-    
+
     Returns:
         Number of new chunks added
     """
-    documents = [
-        doc for doc in split_text_into_sections(text, 1000) if doc and doc.strip()
-    ]
+    documents = [doc for doc in split_text_into_sections(text, 1000) if doc and doc.strip()]
     if not documents:
         raise ValueError(
             "No text to embed. Check the PDF URL or network access, then re-run embed.py."
@@ -254,7 +254,7 @@ def embed_text_in_chromadb(
     }
     if uploaded_by_user_id:
         metadata["uploaded_by"] = str(uploaded_by_user_id)
-    
+
     metadatas = [metadata] * len(documents)
 
     _ = persist_directory  # local path used via utils.DB_FOLDER in _get_collection
@@ -263,19 +263,19 @@ def embed_text_in_chromadb(
     count = collection.count()
     print(f"Collection already contains {count} documents")
     ids = [str(i) for i in range(count, count + len(documents))]
-    
+
     # Filter out duplicate chunks if requested
     if skip_duplicate_chunks and existing_chunk_ids:
         filtered_ids = []
         filtered_documents = []
         filtered_metadatas = []
-        
+
         for doc_id, doc_text, doc_metadata in zip(ids, documents, metadatas):
             if doc_id not in existing_chunk_ids:
                 filtered_ids.append(doc_id)
                 filtered_documents.append(doc_text)
                 filtered_metadatas.append(doc_metadata)
-        
+
         if not filtered_documents:
             print("All chunks already exist in collection. Skipping embedding.")
             return 0
@@ -301,7 +301,7 @@ def embed_text_in_chromadb(
                     documents=documents[i:end],
                     metadatas=metadatas[i:end],
                 )
-                chunks_added += (end - i)
+                chunks_added += end - i
                 break
             except ValueError as e:
                 if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
@@ -325,21 +325,21 @@ def ingest_custom_document(
     file_type: str = "pdf",
 ) -> dict:
     """Ingest custom document with preflight duplicate detection.
-    
+
     Orchestrates the full upload flow:
     1. Extract text from file
     2. Compute content hash
     3. Check for duplicates (preflight)
     4. Skip or embed based on duplicate status
     5. Record in documents table
-    
+
     Args:
         file_bytes: Raw file content
         document_name: Name of document
         document_description: Description of document
         uploaded_by_user_id: UUID of admin uploading document
         file_type: File type ('pdf' or 'txt')
-    
+
     Returns:
         {
             'success': bool,
@@ -351,22 +351,22 @@ def ingest_custom_document(
         }
     """
     from legal_ai.db import db
-    
+
     try:
         # Step 1: Extract text
         print(f"Extracting text from {file_type.upper()}…")
         text = extract_text_from_file(file_bytes, file_type)
         print(f"Extracted {len(text)} characters")
-        
+
         # Step 2: Compute hash
         content_hash = get_document_hash(text)
         print(f"Content hash: {content_hash}")
-        
+
         # Step 3: Preflight check for duplicates
         print("Checking for duplicates…")
         dup_check = check_duplicate_document(document_name, content_hash)
         print(f"Duplicate check result: {dup_check}")
-        
+
         # Step 4: Exact duplicates are NOT re-embedded and NOT re-recorded.
         # (Previously the skip flag was passed with existing_chunk_ids=None,
         # which disabled skipping — duplicates were silently re-embedded while
@@ -418,7 +418,7 @@ def ingest_custom_document(
             "is_duplicate": False,
             "existing_chunks": dup_check["existing_chunks"],
         }
-    
+
     except Exception as e:
         error_msg = f"❌ Error ingesting document: {str(e)}"
         print(error_msg)
@@ -469,7 +469,7 @@ def run_ingest(*, force: bool = False) -> None:
 if __name__ == "__main__":
     # Initialize tracing (LangFuse) - best practice for batch processes
     utils.setup_langfuse_tracing()
-    
+
     try:
         parser = argparse.ArgumentParser(description="Download EU AI Act PDF and embed into Chroma")
         parser.add_argument(

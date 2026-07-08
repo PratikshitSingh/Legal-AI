@@ -27,7 +27,12 @@ from legal_ai.auth.auth import (
     init_auth,
 )
 from legal_ai.auth import browser_storage
-from legal_ai.db.db import get_session_messages, get_jurisdiction_tree, get_user_jurisdictions, update_user_jurisdictions
+from legal_ai.db.db import (
+    get_session_messages,
+    get_jurisdiction_tree,
+    get_user_jurisdictions,
+    update_user_jurisdictions,
+)
 from legal_ai.services.gateway import clear_chat_cache, route_query
 
 
@@ -37,8 +42,7 @@ CHAT_UI_KEY = "chat1"
 def load_ui_messages(session_id: str) -> None:
     rows = get_session_messages(session_id)
     ST.session_state.messages = [
-        {"id": CHAT_UI_KEY, "role": row["role"], "content": row["content"]}
-        for row in rows
+        {"id": CHAT_UI_KEY, "role": row["role"], "content": row["content"]} for row in rows
     ]
 
 
@@ -46,20 +50,20 @@ def render_sign_in() -> None:
     """Render passwordless email sign-in form."""
     ST.subheader("Sign in to Legal AI")
     ST.caption("Enter your email to receive a magic link for passwordless sign-in.")
-    
+
     with ST.form("magic_link_form"):
         email = ST.text_input(
             "Email",
             placeholder="your.email@law-firm.com",
-            help="We'll send you a link to sign in securely"
+            help="We'll send you a link to sign in securely",
         )
         submitted = ST.form_submit_button("Send Magic Link")
-    
+
     if submitted:
         if not email:
             ST.error("Please enter an email address.")
             return
-        
+
         result = request_magic_link(email)
         if result["status"] == "success":
             ST.success(result["message"])
@@ -73,15 +77,17 @@ def render_magic_link_verification(email: str, token: str) -> None:
     # Avoid re-validating already-consumed token when this run is a duplicate
     # (browser prefetch, reloads, or stale verification URL).
     verified_marker = f"{email}:{token}"
-    if is_signed_in() and verified_marker == ST.session_state.get("_legal_ai_last_verified_magic_link"):
+    if is_signed_in() and verified_marker == ST.session_state.get(
+        "_legal_ai_last_verified_magic_link"
+    ):
         ST.query_params.clear()
         ST.rerun()
 
     ST.info(f"🔐 Verifying your sign-in link for {email}...")
-    
+
     with ST.spinner("Checking your magic link..."):
         result = verify_magic_link_token(email, token)
-    
+
     if result["status"] == "success":
         # Store the authenticated session and persist it in the browser cookie.
         set_auth_tokens(
@@ -124,7 +130,7 @@ def render_magic_link_verification(email: str, token: str) -> None:
             ST.query_params.clear()
             ST.rerun()
 
-        error_msg = result.get('message', 'Invalid or expired link. Please request a new one.')
+        error_msg = result.get("message", "Invalid or expired link. Please request a new one.")
         ST.error(f"❌ {error_msg}")
         ST.divider()
         if ST.button("← Back to Sign In"):
@@ -135,17 +141,15 @@ def render_magic_link_email_prompt(token: str) -> None:
     """Prompt user to enter email for magic link verification."""
     ST.subheader("✉️ Complete your sign-in")
     ST.write("Enter your email address to verify the magic link.")
-    
+
     col1, col2 = ST.columns([3, 1])
     with col1:
         email = ST.text_input(
-            "Email",
-            placeholder="your.email@law-firm.com",
-            key="magic_link_email_input"
+            "Email", placeholder="your.email@law-firm.com", key="magic_link_email_input"
         )
     with col2:
         clicked = ST.button("Verify", use_container_width=True, key="verify_btn")
-    
+
     if clicked:
         if not email:
             ST.error("❌ Please enter your email address.")
@@ -159,23 +163,24 @@ def render_sidebar(session_id: str) -> None:
     with ST.sidebar:
         ST.subheader("Account")
         ST.text(f"Signed in as {user}")
-        
+
         # Display user role if available
         from legal_ai.auth import auth as auth_module
+
         user_role = auth_module.get_current_user_role()
         role_emoji = {"admin": "👑", "editor": "✏️", "viewer": "👁️"}.get(user_role, "👤")
         ST.caption(f"{role_emoji} Role: {user_role}")
-        
+
         col1, col2 = ST.columns(2)
         with col1:
             if ST.button("👤 Profile", use_container_width=True):
                 ST.switch_page("pages/profile.py")
-        
+
         with col2:
             if auth_module.is_admin():
                 if ST.button("👑 Admin", use_container_width=True):
                     ST.switch_page("pages/admin.py")
-        
+
         if ST.button("Sign out", use_container_width=True):
             clear_chat_cache()
             sign_out()
@@ -184,42 +189,48 @@ def render_sidebar(session_id: str) -> None:
         # Jurisdiction Filter
         ST.divider()
         ST.subheader("🌍 Jurisdictions")
-        
+
         try:
             # Get user's current jurisdictions
             user_id = get_current_user_id()
             current_jurisdictions = get_user_jurisdictions(user_id)
-            current_ids = [j["jurisdiction_id"] for j in current_jurisdictions] if current_jurisdictions else []
-            
+            current_ids = (
+                [j["jurisdiction_id"] for j in current_jurisdictions]
+                if current_jurisdictions
+                else []
+            )
+
             # Get jurisdiction tree for selector
             jurisdictions = get_jurisdiction_tree()
-            
+
             # Create jurisdiction options
             jurisdiction_options = {j["name"]: j["jurisdiction_id"] for j in jurisdictions}
-            
+
             # Multi-select jurisdictions
             selected_names = ST.multiselect(
                 "Select jurisdictions to search:",
                 options=list(jurisdiction_options.keys()),
                 default=[j["name"] for j in jurisdictions if j["jurisdiction_id"] in current_ids],
-                help="Select one or more jurisdictions to filter your searches"
+                help="Select one or more jurisdictions to filter your searches",
             )
-            
+
             # Save user preferences
             selected_ids = [jurisdiction_options[name] for name in selected_names]
             if selected_ids and selected_ids != current_ids:
-                if ST.button("✅ Save Preferences", use_container_width=True, key="save_jurisdictions"):
+                if ST.button(
+                    "✅ Save Preferences", use_container_width=True, key="save_jurisdictions"
+                ):
                     update_user_jurisdictions(user_id, selected_ids)
                     ST.success("Jurisdiction preferences saved!")
                     ST.rerun()
-            
+
             # Store selected jurisdictions in session state for queries
             ST.session_state["selected_jurisdictions"] = selected_ids
-            
+
             # Add comparison page button
             if ST.button("⚖️ Compare Jurisdictions", use_container_width=True):
                 ST.switch_page("pages/compare.py")
-        
+
         except Exception as e:
             ST.warning(f"Could not load jurisdictions: {str(e)}")
 
@@ -275,10 +286,10 @@ def create_chat(chat_id: str, session_id: str) -> None:
         with ST.spinner("Wait for it..."):
             # Get current access token
             access_token = get_current_access_token()
-            
+
             # Get selected jurisdictions from session state
             jurisdiction_ids = ST.session_state.get("selected_jurisdictions", [])
-            
+
             assistant_response = route_query(
                 question=prompt,
                 session_id=session_id,
@@ -295,7 +306,7 @@ def create_chat(chat_id: str, session_id: str) -> None:
 
 if __name__ == "__main__":
     ST.set_page_config(page_title="Legal-AI", page_icon="⚖️")
-    
+
     # Initialize auth - restores session from browser storage or query params
     init_auth()
 
@@ -304,10 +315,10 @@ if __name__ == "__main__":
         browser_storage.inject_auth_sync_listener()
     except Exception:
         pass
-    
+
     # Initialize tracing (LangFuse)
     utils.setup_langfuse_tracing()
-    
+
     ST.title("Legal-AI")
     ST.caption("EU AI Act RAG assistant — multi-turn conversational retrieval")
 
@@ -316,7 +327,7 @@ if __name__ == "__main__":
     # ========================================================================
     token = ST.query_params.get("token")
     email_from_link = ST.query_params.get("email")
-    
+
     if token:
         if is_signed_in():
             ST.query_params.clear()

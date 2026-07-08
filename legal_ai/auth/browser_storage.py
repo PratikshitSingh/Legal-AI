@@ -144,9 +144,15 @@ def get_auth_from_browser() -> dict | None:
     return None
 
 
-def store_auth_in_browser(user_id: str, email: str, access_token: str,
-                          refresh_token: str, role: str, full_name: str | None,
-                          firm: str | None) -> None:
+def store_auth_in_browser(
+    user_id: str,
+    email: str,
+    access_token: str,
+    refresh_token: str,
+    role: str,
+    full_name: str | None,
+    firm: str | None,
+) -> None:
     """Store auth tokens in a persistent browser cookie."""
     auth_value = _serialize_auth_data(
         user_id=user_id,

@@ -21,6 +21,7 @@ Exit codes:
 
 On non-zero exit, a human-readable "ERROR:" block is printed on stderr.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -87,11 +88,7 @@ def detect_interpreter(project_dir: Path) -> Optional[Tuple[List[str], str]]:
     # monorepos where the project's venv lives at repo root but the agent's
     # cwd / --project-dir points deep into a subdirectory.
     git_root = find_git_root(project_dir)
-    if (
-        git_root is not None
-        and git_root != project_dir
-        and git_root != project_dir.parent
-    ):
+    if git_root is not None and git_root != project_dir and git_root != project_dir.parent:
         py = find_venv_python(git_root / ".venv")
         if py:
             return [str(py)], "venv-git-root"
@@ -239,10 +236,7 @@ def main() -> int:
             )
             return 1
         print(
-            "ERROR: Failed to import streamlit.\n"
-            f"Interpreter: {py_display}\n"
-            "Output:\n"
-            f"{combined}",
+            f"ERROR: Failed to import streamlit.\nInterpreter: {py_display}\nOutput:\n{combined}",
             file=sys.stderr,
         )
         return 1

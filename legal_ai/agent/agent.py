@@ -101,9 +101,7 @@ class LegalChat:
         )
 
         question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
-        rag_chain = create_retrieval_chain(
-            history_aware_retriever, question_answer_chain
-        )
+        rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
 
         self.rag_chain = RunnableWithMessageHistory(
             rag_chain,
@@ -131,19 +129,19 @@ class LegalChat:
                 history.add_ai_message(content)
 
     @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
-)
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
     def ask(self, question: str, user_id: str = None) -> str:
         """Process a question through the RAG chain with tracing support.
-        
+
         Best practice: Include user_id for audit trails and cost attribution.
         LangFuse automatically captures tokens, latency, and chain hierarchy.
-        
+
         Args:
             question: User's question
             user_id: User identifier for tracing context
-        
+
         Returns:
             Assistant's answer (RAG-enhanced with retrieved context)
         """
@@ -153,7 +151,7 @@ class LegalChat:
             session_id=self.session_id,
             tags=["question-answering", "eu-ai-act", "retrieval-augmented"],
         )
-        
+
         response = self.rag_chain.invoke(
             {"input": question},
             config={

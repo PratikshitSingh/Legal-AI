@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Apply all database migrations in sequence."""
+
 import os
 import sys
 from pathlib import Path
@@ -38,22 +39,23 @@ try:
         if not migration_path.exists():
             print(f"⚠️  Migration file not found: {migration_file} (skipping)")
             continue
-        
+
         print(f"\n📝 Running migration: {migration_file}")
-        
+
         with open(migration_path) as f:
             migration_sql = f.read()
-        
+
         with engine.begin() as conn:
             # Execute the entire migration as a single transaction
             conn.execute(text(migration_sql))
-        
+
         print(f"   ✅ {migration_file} applied successfully!")
-    
+
     print("\n✅ All database migrations applied successfully!")
 except Exception as e:
     print(f"\n❌ Migration failed: {e}")
     import traceback
+
     traceback.print_exc()
     exit(1)
 finally:

@@ -28,17 +28,16 @@ class SendGridEmailProvider(EmailProvider):
         try:
             from sendgrid import SendGridAPIClient
             from sendgrid.helpers.mail import Mail
+
             self.SendGridAPIClient = SendGridAPIClient
             self.Mail = Mail
         except ImportError:
-            raise ImportError(
-                "SendGrid SDK not installed. Install with: pip install sendgrid"
-            )
+            raise ImportError("SendGrid SDK not installed. Install with: pip install sendgrid")
 
     def send(self, to_email: str, subject: str, html_body: str) -> bool:
         """Send email via SendGrid."""
         from_email = os.environ.get("EMAIL_FROM", "noreply@legal-ai.app")
-        
+
         try:
             message = self.Mail(
                 from_email=from_email,
@@ -59,12 +58,12 @@ class LocalEmailProvider(EmailProvider):
 
     def send(self, to_email: str, subject: str, html_body: str) -> bool:
         """Print email to console (for development/testing)."""
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"EMAIL TO: {to_email}")
         print(f"SUBJECT: {subject}")
-        print(f"{'-'*60}")
+        print(f"{'-' * 60}")
         print(html_body)
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
         return True
 
 
@@ -83,11 +82,11 @@ def get_email_provider() -> EmailProvider:
 def send_magic_link_email(email: str, magic_link_url: str) -> bool:
     """
     Send magic link email to user.
-    
+
     Args:
         email: User's email address
         magic_link_url: Full URL with magic token (e.g., https://app.com/auth/verify?token=xxx)
-    
+
     Returns:
         True if sent successfully
     """

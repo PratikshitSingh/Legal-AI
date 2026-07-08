@@ -15,15 +15,15 @@ _chats: dict[str, LegalChat] = {}
 def validate_jwt(token: str | None) -> tuple[str | None, bool]:
     """
     Validate JWT access token.
-    
+
     Args:
         token: JWT token string or None
-    
+
     Returns:
         (user_id, is_valid) tuple
         - user_id: UUID of user if valid, None otherwise
         - is_valid: True if token is valid, False otherwise
-    
+
     Example:
         user_id, is_valid = validate_jwt(token)
         if not is_valid:
@@ -64,20 +64,20 @@ def route_query(
     jurisdiction_ids: list[str] | None = None,
 ) -> str:
     """Route user query through RAG pipeline with optional jurisdiction filtering.
-    
+
     Best practice: Include user context (from JWT token) in tracing
     for audit trails and user-level analytics.
-    
+
     Args:
         question: User's question
         session_id: Session identifier for grouping interactions
         jwt: JWT access token (validates user owns this session)
         jurisdiction_ids: Optional list of jurisdiction IDs to filter results by.
                          If None, searches all jurisdictions.
-    
+
     Returns:
         Assistant's answer with tracing recorded in LangFuse
-    
+
     Raises:
         PermissionError: If JWT is invalid
     """
@@ -85,12 +85,12 @@ def route_query(
     user_id, is_valid = validate_jwt(jwt)
     if not is_valid:
         raise PermissionError("Invalid or missing JWT token")
-    
+
     # Verify user owns the session
     session_user_id = db.get_session_user_id(session_id)
     if session_user_id and session_user_id != user_id:
         raise PermissionError("User does not own this session")
-    
+
     ensure_db()
 
     # Hydrate the chat from the DB BEFORE logging the new question; otherwise
@@ -110,6 +110,6 @@ def route_query(
     else:
         # Pass user_id to include in tracing context
         answer = chat.ask(question, user_id=user_id or "anonymous")
-    
+
     db.add_session_message(session_id, "assistant", answer)
     return answer

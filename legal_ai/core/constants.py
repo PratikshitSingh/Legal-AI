@@ -8,9 +8,7 @@ DB_FOLDER = str(ROOT / "chroma_storage")
 DATA_FOLDER = str(ROOT / "data")
 
 # europarl doceo links often return 202 + empty body for scripted clients
-EUROPEAN_ACT_URL = (
-    "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32024R1689"
-)
+EUROPEAN_ACT_URL = "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32024R1689"
 EUROPEAN_ACT_FALLBACK_URLS = [
     "https://artificialintelligenceact.eu/wp-content/uploads/2024/04/TA-9-2024-0138_EN.pdf",
     "https://data.consilium.europa.eu/doc/document/PE-24-2024-REV-1/en/pdf",

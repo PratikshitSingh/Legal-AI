@@ -1,14 +1,13 @@
 """Configuration management."""
 
 import os
-from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from .constants import CONFIG_FILE, ROOT
+from .constants import CONFIG_FILE
 
 
 def load_config() -> dict:
@@ -19,7 +18,7 @@ def load_config() -> dict:
 
 def get_app_base_url() -> str:
     """Get the app base URL from config.yaml or environment variable.
-    
+
     Priority:
     1. APP_BASE_URL environment variable (for overrides)
     2. config.yaml app.base_url

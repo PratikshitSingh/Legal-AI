@@ -13,9 +13,7 @@ load_dotenv()
 def use_chroma_cloud() -> bool:
     """Check if Chroma Cloud is configured."""
     return bool(
-        OS.getenv("CHROMA_API_KEY")
-        and OS.getenv("CHROMA_TENANT")
-        and OS.getenv("CHROMA_DATABASE")
+        OS.getenv("CHROMA_API_KEY") and OS.getenv("CHROMA_TENANT") and OS.getenv("CHROMA_DATABASE")
     )
 
 
@@ -84,23 +82,22 @@ _langfuse_status_message = "Langfuse tracing is not initialized."
 
 def _import_langfuse_callback_handler():
     """Import Langfuse's CallbackHandler from whichever module path is available.
-    
+
     Langfuse versions have different structures:
     - Older versions (< 2.0): langfuse.callback.CallbackHandler
     - 2.0-4.x: langfuse.callback_handler.CallbackHandler or langfuse.CallbackHandler
     - Newer (4.7+): langfuse.langchain.CallbackHandler
     """
     import importlib
-    import sys
 
     # Try different import paths for different langfuse versions
     paths_to_try = [
         ("langfuse.langchain", "CallbackHandler"),  # 4.7+ LangChain integration
-        ("langfuse.callback", "CallbackHandler"),   # Older versions
+        ("langfuse.callback", "CallbackHandler"),  # Older versions
         ("langfuse.callback_handler", "CallbackHandler"),  # Mid versions
         ("langfuse", "CallbackHandler"),  # Some versions expose it at top level
     ]
-    
+
     for module_name, class_name in paths_to_try:
         try:
             module = importlib.import_module(module_name)
@@ -122,18 +119,23 @@ def _import_langfuse_callback_handler():
 
 def setup_langfuse_tracing() -> None:
     """Initialize LangFuse tracing for LangChain operations (startup once).
-    
+
     Best practices implemented:
     - Loads config AFTER env vars are loaded (not during import)
     - Returns callback handler factory for explicit chain integration
     - Supports tags, user context, and data masking
     - Fails gracefully if credentials missing (continues without tracing)
     """
-    global _langfuse_callback, _tracing_enabled, _langfuse_host, _langfuse_project_name, _langfuse_status_message
-    
+    global \
+        _langfuse_callback, \
+        _tracing_enabled, \
+        _langfuse_host, \
+        _langfuse_project_name, \
+        _langfuse_status_message
+
     config = load_config()
     tracing_config = config.get("tracing", {})
-    
+
     if not tracing_config.get("enabled", False):
         _langfuse_host = None
         _langfuse_project_name = tracing_config.get("project_name", "legal-ai")
@@ -141,11 +143,11 @@ def setup_langfuse_tracing() -> None:
         print("[Tracing] LangFuse tracing is disabled in config.yaml")
         _tracing_enabled = False
         return
-    
+
     public_key = OS.getenv("LANGFUSE_PUBLIC_KEY")
     secret_key = OS.getenv("LANGFUSE_SECRET_KEY")
     host = OS.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
-    
+
     if not public_key or not secret_key:
         _langfuse_host = host
         _langfuse_project_name = tracing_config.get("project_name", "legal-ai")
@@ -159,14 +161,14 @@ def setup_langfuse_tracing() -> None:
         )
         _tracing_enabled = False
         return
-    
+
     try:
         CallbackHandler = _import_langfuse_callback_handler()
 
         project_name = tracing_config.get("project_name", "legal-ai")
         _langfuse_host = host
         _langfuse_project_name = project_name
-        
+
         # Try new API (langfuse 4.7+): only public_key
         # Fall back to old API if that fails: public_key, secret_key, host
         try:
@@ -180,17 +182,17 @@ def setup_langfuse_tracing() -> None:
                 host=host,
             )
             print("[Tracing] Using legacy langfuse API (public_key, secret_key, host)")
-        
+
         _tracing_enabled = True
-        _langfuse_status_message = f"Langfuse tracing enabled · Host: {host} · Project: {project_name}"
-        print(
-            f"[Tracing] {_langfuse_status_message}"
+        _langfuse_status_message = (
+            f"Langfuse tracing enabled · Host: {host} · Project: {project_name}"
         )
+        print(f"[Tracing] {_langfuse_status_message}")
     except ImportError as e:
         _langfuse_host = host
         _langfuse_project_name = tracing_config.get("project_name", "legal-ai")
         error_msg = str(e)
-        
+
         _langfuse_status_message = f"Langfuse import failed: {error_msg}"
         print(f"[Tracing] ERROR: {error_msg}")
         _tracing_enabled = False
@@ -200,6 +202,7 @@ def setup_langfuse_tracing() -> None:
         _langfuse_status_message = f"Langfuse tracing failed to initialize: {e}"
         print(f"[Tracing] ERROR initializing LangFuse: {type(e).__name__}: {e}")
         import traceback
+
         traceback.print_exc()
         _tracing_enabled = False
 
@@ -222,19 +225,19 @@ def get_langfuse_callback(
     tags: list[str] = None,
 ) -> list:
     """Get LangFuse callback handler(s) for passing to LangChain chains.
-    
+
     Best practice: Pass callbacks explicitly to chains instead of using globals.
     Supports adding user context, session tracking, and tags for filtering.
-    
+
     Args:
         trace_name: Descriptive name for this trace (e.g., 'contract-analysis')
         user_id: User identifier for audit trails
         session_id: Session identifier for grouping interactions
         tags: List of tags (e.g., ['eu-ai-act', 'question-answering'])
-    
+
     Returns:
         List of callbacks (empty if tracing disabled or not initialized)
-    
+
     Example:
         callbacks = get_langfuse_callback(
             trace_name='rag-retrieval',
@@ -282,13 +285,13 @@ def get_langfuse_callback(
 
 def flush_langfuse_traces() -> None:
     """Flush pending traces to LangFuse backend.
-    
+
     Best practice: Call this before script exit to ensure all traces are sent.
     Important for batch processing, embed.py, and other non-server processes.
     """
     if not _tracing_enabled or _langfuse_callback is None:
         return
-    
+
     try:
         _langfuse_callback.flush()
         print("[Tracing] Traces flushed to LangFuse")

@@ -28,6 +28,6 @@ target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-# Start with correctness-critical rules only (syntax errors, undefined names);
-# the ruleset widens as the refactor phases land.
-select = ["E9", "F63", "F7", "F82"]
+# Start with correctness-critical rules (syntax errors, undefined names,
+# unused imports); the ruleset widens as the refactor phases land.
+select = ["E9", "F401", "F63", "F7", "F82"]

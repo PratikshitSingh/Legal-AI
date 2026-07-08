@@ -1,6 +1,5 @@
 """Auth layer: JWT + magic links + Neon Postgres session persistence."""
 
-import os
 import secrets
 import uuid
 from urllib.parse import quote
@@ -9,7 +8,7 @@ import streamlit as st
 
 from legal_ai.db import db
 from legal_ai.services.email_service import send_magic_link_email
-from legal_ai.core import config, utils
+from legal_ai.core import config
 from . import jwt_utils
 from . import browser_storage
 
@@ -36,7 +35,9 @@ def init_auth() -> None:
     """
     # Allow re-checking browser state when session has no auth.
     # If we've already initialized and a signed-in user exists, skip work.
-    if st.session_state.get("_legal_ai_auth_initialized") and st.session_state.get("legal_ai_user_id"):
+    if st.session_state.get("_legal_ai_auth_initialized") and st.session_state.get(
+        "legal_ai_user_id"
+    ):
         return
 
     st.session_state._legal_ai_auth_initialized = True
@@ -46,9 +47,7 @@ def init_auth() -> None:
     # restore_auth_in_session() verifies the token signature and loads the
     # role from the DB — client-supplied role/user_id values are never trusted.
     if not st.session_state.get("legal_ai_user_id"):
-        came_from_query = all(
-            k in st.query_params for k in ["user_id", "access_token"]
-        )
+        came_from_query = all(k in st.query_params for k in ["user_id", "access_token"])
         if browser_storage.restore_auth_in_session():
             if came_from_query:
                 # Persist the handoff into the browser cookie, then remove the
@@ -90,7 +89,7 @@ def get_current_user_profile() -> dict | None:
     """Get current user's full profile from session state."""
     if not is_signed_in():
         return None
-    
+
     return {
         "user_id": get_current_user_id(),
         "email": get_current_user(),
@@ -110,8 +109,15 @@ def get_current_refresh_token() -> str | None:
     return st.session_state.get("legal_ai_refresh_token")
 
 
-def set_auth_tokens(user_id: str, email: str, access_token: str, refresh_token: str, 
-                   role: str = "viewer", full_name: str | None = None, firm: str | None = None) -> None:
+def set_auth_tokens(
+    user_id: str,
+    email: str,
+    access_token: str,
+    refresh_token: str,
+    role: str = "viewer",
+    full_name: str | None = None,
+    firm: str | None = None,
+) -> None:
     """Store auth tokens and user profile in session state and browser cookie."""
     st.session_state.legal_ai_user_id = user_id
     st.session_state.legal_ai_user_email = email
@@ -120,7 +126,7 @@ def set_auth_tokens(user_id: str, email: str, access_token: str, refresh_token: 
     st.session_state.legal_ai_user_role = role
     st.session_state.legal_ai_user_full_name = full_name
     st.session_state.legal_ai_user_firm = firm
-    
+
     # Also store in browser localStorage for persistence across page reloads
     browser_storage.store_auth_in_browser(
         user_id, email, access_token, refresh_token, role, full_name, firm
@@ -135,12 +141,12 @@ def set_auth_tokens(user_id: str, email: str, access_token: str, refresh_token: 
 def request_magic_link(email: str, app_url: str = None) -> dict[str, str]:
     """
     Request a magic link for passwordless sign-in.
-    
+
     Args:
         email: User's email address
         app_url: Base URL for the app (e.g., https://legal-ai.streamlit.app)
                 If None, uses get_app_base_url() from config or environment
-    
+
     Returns:
         {"status": "success|error", "message": "<message>"}
     """
@@ -150,26 +156,26 @@ def request_magic_link(email: str, app_url: str = None) -> dict[str, str]:
 
     try:
         ensure_db()
-        
+
         # Generate magic link token
         magic_token = secrets.token_urlsafe(32)
-        
+
         # Store magic link in DB (hashed)
         db.create_magic_link(email, magic_token, expires_in_minutes=15)
-        
+
         # Determine app URL: use provided value or get from config
         if app_url is None:
             app_url = config.get_app_base_url()
-        
+
         # Include both token and email in the magic link (URL-encode the email)
-        encoded_email = quote(email, safe='')
+        encoded_email = quote(email, safe="")
         magic_link_url = f"{app_url}?token={magic_token}&email={encoded_email}"
-        
+
         # Send email with magic link
         success = send_magic_link_email(email, magic_link_url)
         if not success:
             return {"status": "error", "message": "Failed to send email. Please try again."}
-        
+
         return {
             "status": "success",
             "message": f"Check your email ({email}) for the magic link!",
@@ -181,7 +187,7 @@ def request_magic_link(email: str, app_url: str = None) -> dict[str, str]:
 def verify_magic_link_token(email: str, token: str) -> dict:
     """
     Verify magic link token for a specific email.
-    
+
     Returns:
         {
             "status": "success|error",
@@ -197,25 +203,25 @@ def verify_magic_link_token(email: str, token: str) -> dict:
     """
     try:
         ensure_db()
-        
+
         # Normalize email
         email = (email or "").strip().lower()
-        
+
         # Validate magic link token
         is_valid = db.validate_magic_link(email, token)
         if not is_valid:
             return {"status": "error", "message": "Invalid or expired magic link"}
-        
+
         # Create or get user (defaults to 'viewer' role for new users)
         user_id = db.create_user(email)
         db.update_user_last_login(user_id)
-        
+
         # Fetch full user profile (includes role, full_name, firm)
         user = db.get_user_by_id(user_id)
-        
+
         # Generate JWT tokens
         tokens = jwt_utils.generate_auth_tokens(user_id)
-        
+
         # Store refresh token in DB
         db.create_refresh_token(user_id, tokens["refresh_token"])
 
@@ -241,7 +247,7 @@ def verify_magic_link_token(email: str, token: str) -> dict:
 def refresh_access_token_if_needed() -> bool:
     """
     Check if access token is expired and refresh if needed using refresh token.
-    
+
     Returns:
         True if token is still valid (or was refreshed), False if refresh failed
     """
@@ -298,10 +304,10 @@ def sign_out() -> None:
         "selected_session_id",
     ):
         st.session_state.pop(key, None)
-    
+
     # Clear from browser storage
     browser_storage.clear_auth_from_browser()
-    
+
     # Clear query params
     st.query_params.clear()
 
@@ -314,7 +320,7 @@ def sign_out() -> None:
 def get_or_create_session_id(user_id: str | None = None) -> str:
     """Create or get a chat session tied to the user."""
     ensure_db()
-    
+
     # Use provided user_id or current session state
     if user_id is None:
         user_id = get_current_user_id()
@@ -323,21 +329,21 @@ def get_or_create_session_id(user_id: str | None = None) -> str:
         st.session_state.legal_ai_session_id = str(uuid.uuid4())
 
     session_id = st.session_state.legal_ai_session_id
-    
+
     # Upsert session with user_id
     db.upsert_session(
         session_id,
         user_id=user_id,
         display_user=get_current_user() or "anonymous",
     )
-    
+
     return session_id
 
 
 def start_new_chat(user_id: str | None = None) -> str:
     """New session for the current user; clears in-memory UI messages."""
     ensure_db()
-    
+
     if user_id is None:
         user_id = get_current_user_id()
 
@@ -360,19 +366,21 @@ def switch_to_session(session_id: str) -> None:
     """Switch to an existing chat session."""
     ensure_db()
     user_id = get_current_user_id()
-    
+
     st.session_state.legal_ai_session_id = session_id
     st.session_state.selected_session_id = session_id
-    
+
     # Update session's user_id
     if user_id:
-        db.upsert_session(session_id, user_id=user_id, display_user=get_current_user() or "anonymous")
+        db.upsert_session(
+            session_id, user_id=user_id, display_user=get_current_user() or "anonymous"
+        )
 
 
 def list_past_chats(user_id: str | None = None) -> list[dict]:
     """List past chat sessions for the current user."""
     ensure_db()
-    
+
     if user_id is None:
         user_id = get_current_user_id()
 
@@ -400,12 +408,12 @@ def is_editor() -> bool:
 
 def has_role(required_role: str) -> bool:
     """Check if current user has at least the required role.
-    
+
     Role hierarchy: viewer < editor < admin
-    
+
     Args:
         required_role: 'viewer', 'editor', or 'admin'
-    
+
     Returns:
         True if user has the required role or higher
     """
@@ -420,10 +428,10 @@ def has_role(required_role: str) -> bool:
 
 def require_role(required_role: str) -> bool:
     """Require specific role; return False and show error if not authorized.
-    
+
     Args:
         required_role: 'viewer', 'editor', or 'admin'
-    
+
     Returns:
         True if authorized, False otherwise (error already displayed)
     """
@@ -435,11 +443,11 @@ def require_role(required_role: str) -> bool:
 
 def check_permission(user_id: str, required_role: str) -> bool:
     """Check if a specific user has required role.
-    
+
     Args:
         user_id: User UUID to check
         required_role: Required role level
-    
+
     Returns:
         True if user has the required role or higher
     """
@@ -447,7 +455,7 @@ def check_permission(user_id: str, required_role: str) -> bool:
     user = db.get_user_by_id(user_id)
     if not user:
         return False
-    
+
     role_hierarchy = {"viewer": 0, "editor": 1, "admin": 2}
     user_level = role_hierarchy.get(user.get("role", "viewer"), -1)
     required_level = role_hierarchy.get(required_role, -1)

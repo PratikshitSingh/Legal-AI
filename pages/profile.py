@@ -39,11 +39,11 @@ with col1:
 
 with col2:
     st.subheader("Account Dates")
-    if user.get('created_at'):
+    if user.get("created_at"):
         st.write(f"**Created:** {user['created_at']}")
-    if user.get('updated_at'):
+    if user.get("updated_at"):
         st.write(f"**Last Updated:** {user['updated_at']}")
-    if user.get('last_login_at'):
+    if user.get("last_login_at"):
         st.write(f"**Last Login:** {user['last_login_at']}")
 
 st.divider()
@@ -56,17 +56,17 @@ col1, col2 = st.columns(2)
 with col1:
     full_name = st.text_input(
         "Full Name",
-        value=user.get('full_name') or "",
+        value=user.get("full_name") or "",
         placeholder="Enter your full name",
-        key="full_name_input"
+        key="full_name_input",
     )
 
 with col2:
     firm = st.text_input(
         "Firm / Organization",
-        value=user.get('firm') or "",
+        value=user.get("firm") or "",
         placeholder="Enter your firm or organization",
-        key="firm_input"
+        key="firm_input",
     )
 
 # Save button
@@ -74,11 +74,9 @@ if st.button("💾 Save Changes", key="save_profile"):
     try:
         # Update profile
         success = db.update_user_profile(
-            user_id,
-            full_name=full_name if full_name else None,
-            firm=firm if firm else None
+            user_id, full_name=full_name if full_name else None, firm=firm if firm else None
         )
-        
+
         if success:
             # Update session state
             st.session_state.legal_ai_user_full_name = full_name

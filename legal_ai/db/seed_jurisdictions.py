@@ -1,8 +1,6 @@
 """Seed jurisdictions from JSON into database."""
 
 import json
-from pathlib import Path
-from uuid import UUID
 
 from legal_ai.db.db import get_engine
 from sqlalchemy import text
@@ -48,34 +46,34 @@ def insert_jurisdiction(
 def seed_jurisdictions(file_path: str | None = None) -> None:
     """
     Load hierarchical jurisdictions from JSON into database.
-    
+
     Args:
         file_path: Path to jurisdictions_seed.json (defaults to data/jurisdictions_seed.json)
     """
     if file_path is None:
         file_path = "legal_ai/data/jurisdictions_seed.json"
-    
+
     # Load seed data
     seed_data = load_jurisdictions_from_file(file_path)
-    
+
     # Get WORLD jurisdiction ID (should exist from migration 005)
     engine = get_engine()
     with engine.begin() as conn:
         world_id = conn.execute(
             text("SELECT jurisdiction_id::text FROM jurisdictions WHERE code = 'WORLD'")
         ).scalar()
-        
+
         if not world_id:
             print("❌ WORLD jurisdiction not found. Run migrations first.")
             return
-        
+
         print(f"🌍 Root jurisdiction WORLD: {world_id}")
-        
+
         # Process regions
         inserted = 0
         for region in seed_data.get("regions", []):
             print(f"\n📍 Region: {region['name']}")
-            
+
             # Insert region under WORLD
             region_id = insert_jurisdiction(
                 conn,
@@ -88,7 +86,7 @@ def seed_jurisdictions(file_path: str | None = None) -> None:
             )
             inserted += 1
             print(f"  ✅ Inserted region: {region['name']} ({region['code']})")
-            
+
             # Process countries/states in this region
             for country_or_region in region.get("countries", []):
                 # Check if it's an EU-like super-region (has countries inside)
@@ -104,8 +102,10 @@ def seed_jurisdictions(file_path: str | None = None) -> None:
                         flag_emoji=country_or_region.get("flag_emoji"),
                     )
                     inserted += 1
-                    print(f"    ✅ Inserted sub-region: {country_or_region['name']} ({country_or_region['code']})")
-                    
+                    print(
+                        f"    ✅ Inserted sub-region: {country_or_region['name']} ({country_or_region['code']})"
+                    )
+
                     # Insert countries under super-region
                     for country in country_or_region.get("countries", []):
                         country_id = insert_jurisdiction(
@@ -119,7 +119,7 @@ def seed_jurisdictions(file_path: str | None = None) -> None:
                         )
                         inserted += 1
                         print(f"      ✅ Inserted country: {country['name']} ({country['code']})")
-                
+
                 else:
                     # It's a regular country
                     country_id = insert_jurisdiction(
@@ -132,8 +132,10 @@ def seed_jurisdictions(file_path: str | None = None) -> None:
                         flag_emoji=country_or_region.get("flag_emoji"),
                     )
                     inserted += 1
-                    print(f"    ✅ Inserted country: {country_or_region['name']} ({country_or_region['code']})")
-                    
+                    print(
+                        f"    ✅ Inserted country: {country_or_region['name']} ({country_or_region['code']})"
+                    )
+
                     # Insert states (for countries like US)
                     for state in country_or_region.get("states", []):
                         state_id = insert_jurisdiction(
@@ -145,7 +147,7 @@ def seed_jurisdictions(file_path: str | None = None) -> None:
                             region_code=region["code"],
                         )
                         inserted += 1
-        
+
         print(f"\n✅ Successfully seeded {inserted} jurisdictions!")
 
 

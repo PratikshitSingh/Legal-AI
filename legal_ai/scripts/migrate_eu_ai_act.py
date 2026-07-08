@@ -3,7 +3,6 @@
 import hashlib
 import sys
 from pathlib import Path
-from uuid import uuid4
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -20,32 +19,32 @@ def migrate_eu_ai_act() -> None:
     3. Update Chroma chunks with new metadata
     """
     engine = get_engine()
-    
+
     print("🇪🇺 Migrating EU AI Act to new schema...")
-    
+
     # Generate a placeholder content hash for the existing document
     placeholder_hash = hashlib.md5(b"EU-AI-Act-1.0").hexdigest()
-    
+
     with engine.begin() as conn:
         # Get EU jurisdiction ID
         eu_jurisdiction = conn.execute(
             text("SELECT jurisdiction_id::text FROM jurisdictions WHERE code = 'EU'")
         ).scalar()
-        
+
         if not eu_jurisdiction:
             print("❌ EU jurisdiction not found. Run seed_jurisdictions first.")
             return
-        
+
         # Get doc type ID for 'regulation'
         reg_type = conn.execute(
             text("SELECT doc_type_id::text FROM document_types WHERE name = 'regulation'")
         ).scalar()
-        
+
         # Get language ID for 'en'
         en_lang = conn.execute(
             text("SELECT language_id::text FROM languages WHERE code = 'en'")
         ).scalar()
-        
+
         # Find existing EU AI Act document
         eu_ai_doc = conn.execute(
             text("""
@@ -54,7 +53,7 @@ def migrate_eu_ai_act() -> None:
                 LIMIT 1
             """)
         ).scalar()
-        
+
         if eu_ai_doc:
             print(f"  Found existing EU AI Act document: {eu_ai_doc}")
             doc_id = eu_ai_doc
@@ -88,7 +87,7 @@ def migrate_eu_ai_act() -> None:
             ).scalar()
             doc_id = result
             print(f"  ✅ Created new document: {doc_id}")
-        
+
         # Update existing document if needed
         if eu_ai_doc:
             conn.execute(
@@ -114,7 +113,7 @@ def migrate_eu_ai_act() -> None:
                 },
             )
             print(f"  ✅ Updated document with jurisdiction and metadata")
-        
+
         # Create document version record
         conn.execute(
             text("""
@@ -136,29 +135,32 @@ def migrate_eu_ai_act() -> None:
             },
         )
         print(f"  ✅ Created version record")
-    
+
     # Update Chroma collection metadata
     print("\n📦 Updating Chroma chunks with new metadata...")
     try:
         from legal_ai.services.embed import _get_collection
+
         collection = _get_collection()
-        
+
         # Get all chunks with the EU AI Act name
         results = collection.get(where={"name": {"$eq": "Artificial Intelligence Act"}})
-        
+
         if not results or not results["ids"]:
             print("  ⚠️  No chunks found in Chroma collection")
             return
-        
+
         chunk_ids = results["ids"]
         print(f"  Found {len(chunk_ids)} chunks to update")
-        
+
         # Update metadata for each chunk
         updated_metadatas = []
         for i, old_metadata in enumerate(results.get("metadatas", [])):
             updated_metadata = {
                 "name": old_metadata.get("name", "Artificial Intelligence Act"),
-                "description": old_metadata.get("description", "EU Regulation on Artificial Intelligence (AI Act)"),
+                "description": old_metadata.get(
+                    "description", "EU Regulation on Artificial Intelligence (AI Act)"
+                ),
                 "jurisdiction_id": eu_jurisdiction,
                 "jurisdiction_code": "EU",
                 "document_id": doc_id,
@@ -172,21 +174,18 @@ def migrate_eu_ai_act() -> None:
                 "uploaded_by": old_metadata.get("uploaded_by"),
             }
             updated_metadatas.append(updated_metadata)
-        
+
         # Update in batches
         batch_size = 100
         for i in range(0, len(chunk_ids), batch_size):
-            batch_ids = chunk_ids[i:i+batch_size]
-            batch_metadatas = updated_metadatas[i:i+batch_size]
-            
-            collection.update(
-                ids=batch_ids,
-                metadatas=batch_metadatas
-            )
-            print(f"  ✅ Updated {min(i+batch_size, len(chunk_ids))}/{len(chunk_ids)} chunks")
-        
+            batch_ids = chunk_ids[i : i + batch_size]
+            batch_metadatas = updated_metadatas[i : i + batch_size]
+
+            collection.update(ids=batch_ids, metadatas=batch_metadatas)
+            print(f"  ✅ Updated {min(i + batch_size, len(chunk_ids))}/{len(chunk_ids)} chunks")
+
         print(f"\n✅ Successfully migrated EU AI Act to new schema!")
-    
+
     except Exception as e:
         print(f"⚠️  Could not update Chroma chunks: {e}")
         print("   (This is non-fatal; chunks will be updated on next ingestion)")

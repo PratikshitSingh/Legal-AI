@@ -10,7 +10,9 @@ class JurisdictionAwareRetriever:
         """Initialize retriever with Chroma collection."""
         self.collection = _get_collection()
 
-    def _build_jurisdiction_filter(self, jurisdiction_ids: list[str], include_parent: bool = True) -> dict:
+    def _build_jurisdiction_filter(
+        self, jurisdiction_ids: list[str], include_parent: bool = True
+    ) -> dict:
         """Build Chroma WHERE filter for jurisdiction IDs.
 
         Args:
@@ -30,11 +32,7 @@ class JurisdictionAwareRetriever:
             return {"jurisdiction_id": {"$in": jurisdiction_ids}}
 
     def search_within_jurisdictions(
-        self,
-        query: str,
-        jurisdiction_ids: list[str],
-        k: int = 5,
-        include_parent: bool = True
+        self, query: str, jurisdiction_ids: list[str], k: int = 5, include_parent: bool = True
     ) -> list[dict]:
         """Search for documents within specific jurisdictions.
 
@@ -59,9 +57,7 @@ class JurisdictionAwareRetriever:
 
         # Query Chroma collection
         results = self.collection.query(
-            query_texts=[query],
-            n_results=k,
-            where=where_filter if where_filter else None
+            query_texts=[query], n_results=k, where=where_filter if where_filter else None
         )
 
         if not results or not results["documents"]:
@@ -73,14 +69,16 @@ class JurisdictionAwareRetriever:
             metadata = results["metadatas"][0][i]
             distance = results["distances"][0][i] if results.get("distances") else 0
 
-            formatted_results.append({
-                "document": doc,
-                "metadata": metadata,
-                "distance": distance,
-                "jurisdiction": metadata.get("jurisdiction_code", "UNKNOWN"),
-                "section_title": metadata.get("section_title", ""),
-                "status": metadata.get("status", "active"),
-                "effective_date": metadata.get("effective_date", ""),
-            })
+            formatted_results.append(
+                {
+                    "document": doc,
+                    "metadata": metadata,
+                    "distance": distance,
+                    "jurisdiction": metadata.get("jurisdiction_code", "UNKNOWN"),
+                    "section_title": metadata.get("section_title", ""),
+                    "status": metadata.get("status", "active"),
+                    "effective_date": metadata.get("effective_date", ""),
+                }
+            )
 
         return formatted_results
