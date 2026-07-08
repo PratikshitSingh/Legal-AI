@@ -5,22 +5,11 @@ legal queries with session_id to the query orchestrator.
 """
 
 from legal_ai.agent.agent import LegalChat
-from legal_ai.services.jurisdiction_retriever import JurisdictionAwareRetriever
-
 from legal_ai.db import db
 from legal_ai.auth import jwt_utils
 from legal_ai.auth.auth import ensure_db
 
 _chats: dict[str, LegalChat] = {}
-_jurisdiction_retriever: JurisdictionAwareRetriever | None = None
-
-
-def get_jurisdiction_retriever() -> JurisdictionAwareRetriever:
-    """Get or create singleton jurisdiction retriever."""
-    global _jurisdiction_retriever
-    if _jurisdiction_retriever is None:
-        _jurisdiction_retriever = JurisdictionAwareRetriever()
-    return _jurisdiction_retriever
 
 
 def validate_jwt(token: str | None) -> tuple[str | None, bool]:
@@ -108,13 +97,13 @@ def route_query(
     # the question is loaded into history from the DB and then added again by
     # the chain, duplicating it in the LLM context on resumed sessions.
     chat = get_chat(session_id)
-    db.log_message(session_id, "user", question)
+    db.add_session_message(session_id, "user", question)
 
     # If jurisdiction_ids provided, pass jurisdiction context to the chat
     if jurisdiction_ids:
-        # Note: Full retriever-level filtering would be integrated into
-        # LegalChat (see get_jurisdiction_retriever); for now we pass the
-        # context to the chat as part of the question.
+        # Note: full retriever-level filtering would be integrated into
+        # LegalChat; for now the jurisdiction context is appended to the
+        # question as a prompt annotation.
         context_info = f"[Filtered to jurisdictions: {', '.join(jurisdiction_ids)}]"
         enhanced_question = f"{question}\n{context_info}"
         answer = chat.ask(enhanced_question, user_id=user_id or "anonymous")
@@ -122,5 +111,5 @@ def route_query(
         # Pass user_id to include in tracing context
         answer = chat.ask(question, user_id=user_id or "anonymous")
     
-    db.log_message(session_id, "assistant", answer)
+    db.add_session_message(session_id, "assistant", answer)
     return answer

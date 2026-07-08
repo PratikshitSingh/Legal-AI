@@ -87,19 +87,6 @@ def fetch_pdf_bytes(urls: list[str] | None = None) -> bytes:
     )
 
 
-def pdf_to_text(url: str | None = None) -> str:
-    try:
-        if url:
-            pdf_data = _download_pdf(url)
-            _cache_pdf(pdf_data)
-        else:
-            pdf_data = fetch_pdf_bytes()
-        return _pdf_bytes_to_text(pdf_data)
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        raise
-
-
 def split_text_into_sections(text: str, min_chars_per_section: int) -> list[str]:
     paragraphs = text.split("\n")
     sections: list[str] = []

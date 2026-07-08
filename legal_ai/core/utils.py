@@ -1,18 +1,11 @@
 """Core utilities for article management, embeddings, and tracing."""
 
-import json as JS
 import os as OS
-from pathlib import Path
 
 from dotenv import load_dotenv
 
 from .config import load_config
-from .constants import (
-    ARTICLES_FILE,
-    ARTICLES_FOLDER,
-    COLLECTION_NAME,
-    DB_FOLDER,
-)
+from .constants import COLLECTION_NAME, DB_FOLDER
 
 load_dotenv()
 
@@ -77,78 +70,6 @@ def get_gemini_api_key() -> str:
     return key
 
 
-def get_embedding_settings() -> dict:
-    """Get embedding configuration."""
-    config = load_config()
-    emb = config.get("embeddings", {})
-    return {
-        "model": emb.get("model", "gemini-embedding-001"),
-        "task_type": emb.get("task_type", "RETRIEVAL_DOCUMENT"),
-        "api_key_env": emb.get("api_key_env", "GEMINI_API_KEY"),
-    }
-
-
-def load_articles(file_name: str) -> list:
-    """Load articles from JSON file."""
-    result = []
-    if OS.path.exists(file_name):
-        with open(file_name, encoding="utf-8") as file:
-            try:
-                result = JS.load(file)
-            except JS.JSONDecodeError:
-                print("File exists but is not valid JSON. Returning empty object.")
-    else:
-        # Create the parent directory BEFORE creating the file, and write an
-        # actual empty JSON list (not the string "[{}]", which json-encodes to
-        # a quoted string and breaks subsequent loads).
-        parent_dir = OS.path.dirname(file_name)
-        if parent_dir:
-            OS.makedirs(parent_dir, exist_ok=True)
-        OS.makedirs(ARTICLES_FOLDER, exist_ok=True)
-        with open(file_name, "w", encoding="utf-8") as file:
-            JS.dump([], file)
-        print(f"File '{file_name}' did not exist and was created.")
-
-    return result
-
-
-def save_articles(file_name: str, data) -> None:
-    """Save articles to JSON file."""
-    try:
-        with open(file_name, "w", encoding="utf-8") as file:
-            JS.dump(data, file, indent=4)
-            print(f"Data successfully saved to '{file_name}'.")
-    except Exception as e:
-        print(f"Error: trying to save articles data [{e}]")
-
-
-def save_article_content(file_name: str, content: str) -> None:
-    """Save article content to file."""
-    try:
-        with open(file_name, "w", encoding="utf-8") as file:
-            file.write(content)
-    except IOError as e:
-        print(f"An IOError occurred: {e.strerror}")
-    except Exception as e:
-        print(f"Error: {e}")
-    else:
-        print(f"Content successfully written to '{file_name}'.")
-
-
-def load_article_content(file_name: str) -> str:
-    """Load article content from file."""
-    result = ""
-    try:
-        with open(file_name, encoding="utf-8") as file:
-            result = file.read()
-    except Exception as e:
-        print(
-            f"An unexpected error occurred while reading content file '{file_name}': {e}"
-        )
-
-    return result
-
-
 # ============================================================================
 # Tracing Utilities
 # ============================================================================
@@ -197,37 +118,6 @@ def _import_langfuse_callback_handler():
         "langfuse is installed but CallbackHandler could not be imported. "
         "Tried paths: langfuse.langchain, langfuse.callback, langfuse.callback_handler, langfuse"
     )
-
-
-def _mask_sensitive_legal_content(text: str) -> str:
-    """Mask sensitive PII in legal documents for tracing.
-    
-    Removes/redacts:
-    - Email addresses
-    - Phone numbers  
-    - Social security numbers
-    - Account numbers (partial masking)
-    - Dates in certain formats (can be tuned)
-    
-    Best practice: Only trace necessary context, not full documents.
-    """
-    import re
-    
-    masked = text
-    
-    # Email addresses
-    masked = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '[EMAIL]', masked)
-    
-    # Phone numbers (various formats)
-    masked = re.sub(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', '[PHONE]', masked)
-    
-    # SSN (XXX-XX-XXXX or similar)
-    masked = re.sub(r'\b\d{3}-\d{2}-\d{4}\b', '[SSN]', masked)
-    
-    # Bank account numbers (simplified: 8+ consecutive digits)
-    masked = re.sub(r'\b\d{8,}\b', '[ACCOUNT_NUMBER]', masked)
-    
-    return masked
 
 
 def setup_langfuse_tracing() -> None:

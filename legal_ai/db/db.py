@@ -522,28 +522,8 @@ def validate_magic_link(email: str, token: str) -> bool:
         ).scalar()
 
         if not result:
-            # Debug: Check why it failed
-            debug_result = conn.execute(
-                text(
-                    """
-                    SELECT link_id, expires_at, used_at, email, token_hash 
-                    FROM magic_links
-                    WHERE email = :email OR token_hash = :token_hash
-                    ORDER BY created_at DESC LIMIT 3
-                    """
-                ),
-                {"email": email, "token_hash": token_hash},
-            ).fetchall()
-            
-            if debug_result:
-                print(f"DEBUG: Found magic links for investigation:")
-                for row in debug_result:
-                    print(f"  - Email match: {row[3] == email}, Token match: {row[4] == token_hash}, Used: {row[2] is not None}, Expires: {row[1]}")
-            else:
-                print(f"DEBUG: No magic links found for email={email} or token_hash={token_hash[:20]}...")
-            
             return False
-        
+
         # Mark as used
         conn.execute(
             text(
@@ -785,17 +765,6 @@ def add_session_message(session_id: str, role: str, content: str) -> None:
         )
 
 
-def log_message(session_id: str, role: str, content: str) -> None:
-    """Convenience alias for add_session_message.
-    
-    Add a message to a chat session's audit log.
-    
-    Args:
-        session_id: Session ID
-        role: Message role ('user', 'assistant', etc.)
-        content: Message content
-    """
-    add_session_message(session_id, role, content)
 
 
 # ============================================================================
@@ -890,37 +859,6 @@ def get_document_by_name_hash(name: str, content_hash: str) -> dict | None:
     return dict(row) if row else None
 
 
-def get_documents_by_name(name: str, limit: int = 10) -> list[dict]:
-    """Fetch all documents with a given name (for duplicate detection across versions).
-    
-    Args:
-        name: Document name
-        limit: Maximum documents to return
-    
-    Returns:
-        List of document dicts
-    """
-    engine = get_engine()
-    with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
-                SELECT 
-                    document_id::text, name, description, content_hash,
-                    uploaded_by::text, file_type, chunk_count,
-                    created_at, updated_at, metadata
-                FROM documents
-                WHERE name = :name
-                ORDER BY created_at DESC
-                LIMIT :limit
-                """
-            ),
-            {"name": name, "limit": limit},
-        ).mappings().all()
-    
-    return [dict(row) for row in rows]
-
-
 def get_all_documents(limit: int = 100, offset: int = 0) -> list[dict]:
     """Fetch all uploaded documents with pagination.
     
@@ -948,37 +886,6 @@ def get_all_documents(limit: int = 100, offset: int = 0) -> list[dict]:
                 """
             ),
             {"limit": limit, "offset": offset},
-        ).mappings().all()
-    
-    return [dict(row) for row in rows]
-
-
-def get_documents_by_uploader(uploaded_by_user_id: str, limit: int = 50) -> list[dict]:
-    """Fetch all documents uploaded by a specific user.
-    
-    Args:
-        uploaded_by_user_id: UUID of uploader
-        limit: Maximum documents to return
-    
-    Returns:
-        List of document dicts
-    """
-    engine = get_engine()
-    with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
-                SELECT 
-                    document_id::text, name, description, content_hash,
-                    uploaded_by::text, file_type, chunk_count,
-                    created_at, updated_at, metadata
-                FROM documents
-                WHERE uploaded_by = CAST(:uploaded_by_user_id AS UUID)
-                ORDER BY created_at DESC
-                LIMIT :limit
-                """
-            ),
-            {"uploaded_by_user_id": uploaded_by_user_id, "limit": limit},
         ).mappings().all()
     
     return [dict(row) for row in rows]
@@ -1138,132 +1045,3 @@ def update_user_jurisdictions(user_id: str, jurisdiction_ids: list[str]) -> bool
         print(f"Error updating user jurisdictions: {e}")
         return False
 
-
-def get_document_versions(document_id: str) -> list[dict]:
-    """Get all versions of a document with change summary.
-    
-    Args:
-        document_id: Document ID
-    
-    Returns:
-        List of version dicts ordered by effective_date DESC
-    """
-    engine = get_engine()
-    with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
-                SELECT 
-                    version_id::text,
-                    document_id::text,
-                    version,
-                    effective_date,
-                    created_by::text,
-                    change_summary,
-                    superseded_by_version_id::text,
-                    created_at
-                FROM document_versions
-                WHERE document_id = CAST(:document_id AS UUID)
-                ORDER BY effective_date DESC
-                """
-            ),
-            {"document_id": document_id}
-        ).mappings().all()
-    
-    return [dict(row) for row in rows]
-
-
-def create_document_version(
-    document_id: str,
-    version: str,
-    effective_date: str,
-    change_summary: str,
-    created_by_user_id: str | None = None
-) -> dict | None:
-    """Create a new version record for a document.
-    
-    Args:
-        document_id: Document ID
-        version: Version string (e.g., "1.1", "2.0")
-        effective_date: Date version becomes effective (ISO format)
-        change_summary: Summary of changes in this version
-        created_by_user_id: User ID creating the version (optional)
-    
-    Returns:
-        Version record dict, or None if error
-    """
-    engine = get_engine()
-    try:
-        with engine.begin() as conn:
-            result = conn.execute(
-                text(
-                    """
-                    INSERT INTO document_versions (
-                        document_id, version, effective_date, change_summary, created_by
-                    )
-                    VALUES (
-                        CAST(:document_id AS UUID),
-                        :version,
-                        CAST(:effective_date AS DATE),
-                        :change_summary,
-                        CAST(:created_by AS UUID)
-                    )
-                    RETURNING version_id::text, document_id::text, version, effective_date, created_at
-                    """
-                ),
-                {
-                    "document_id": document_id,
-                    "version": version,
-                    "effective_date": effective_date,
-                    "change_summary": change_summary,
-                    "created_by": created_by_user_id
-                }
-            ).mappings().first()
-        
-        return dict(result) if result else None
-    except Exception as e:
-        print(f"Error creating document version: {e}")
-        return None
-
-
-def get_documents_by_jurisdiction(jurisdiction_id: str, limit: int = 50) -> list[dict]:
-    """Get all documents for a specific jurisdiction.
-    
-    Args:
-        jurisdiction_id: Jurisdiction ID (UUID as string)
-        limit: Maximum documents to return
-    
-    Returns:
-        List of document dicts
-    """
-    engine = get_engine()
-    with engine.connect() as conn:
-        rows = conn.execute(
-            text(
-                """
-                SELECT 
-                    d.document_id::text,
-                    d.name,
-                    d.description,
-                    d.jurisdiction_id::text,
-                    j.code as jurisdiction_code,
-                    j.name as jurisdiction_name,
-                    d.version,
-                    d.status,
-                    d.effective_date,
-                    d.doc_type_id::text,
-                    dt.name as doc_type,
-                    d.created_at
-                FROM documents d
-                JOIN jurisdictions j ON d.jurisdiction_id = j.jurisdiction_id
-                LEFT JOIN document_types dt ON d.doc_type_id = dt.doc_type_id
-                WHERE d.jurisdiction_id = CAST(:jurisdiction_id AS UUID)
-                AND d.is_latest = true
-                ORDER BY d.effective_date DESC
-                LIMIT :limit
-                """
-            ),
-            {"jurisdiction_id": jurisdiction_id, "limit": limit}
-        ).mappings().all()
-    
-    return [dict(row) for row in rows]

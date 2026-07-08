@@ -13,18 +13,6 @@ tracing:
   provider: langfuse
   sample_rate: 1.0
 
-jwt:
-  access_token_expires_seconds: 900  # 15 minutes
-  refresh_token_expires_days: 7
-  secret_env: JWT_SECRET  # Load JWT_SECRET from environment
-
-email:
-  provider: sendgrid
-  provider_key_env: SENDGRID_API_KEY
-  from_address_env: EMAIL_FROM
-  default_from: noreply@legal-ai.app
-  magic_link_expires_minutes: 15
-
 # For Streamlit deployment
 app:
   base_url: https://legal-ai-anjhwkwci9gqrofvqkueks.streamlit.app

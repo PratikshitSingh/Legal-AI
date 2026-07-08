@@ -160,11 +160,6 @@ def store_auth_in_browser(user_id: str, email: str, access_token: str,
     _inject_html(_cookie_script(auth_value, _auth_cookie_max_age_seconds()))
 
 
-def restore_auth_from_browser() -> dict | None:
-    """Restore auth tokens from the browser cookie."""
-    return get_auth_from_browser()
-
-
 def clear_auth_from_browser() -> None:
     """Clear auth tokens from the browser cookie."""
     _inject_html(_clear_cookie_script())

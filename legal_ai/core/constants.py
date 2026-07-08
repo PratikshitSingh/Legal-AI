@@ -4,8 +4,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 
-ARTICLES_FILE = "articles.json"
-ARTICLES_FOLDER = "articles"
 DB_FOLDER = str(ROOT / "chroma_storage")
 DATA_FOLDER = str(ROOT / "data")
 

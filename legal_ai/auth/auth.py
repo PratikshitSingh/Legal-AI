@@ -178,26 +178,6 @@ def request_magic_link(email: str, app_url: str = None) -> dict[str, str]:
         return {"status": "error", "message": f"Error: {str(e)}"}
 
 
-def verify_magic_link(token: str) -> dict[str, str]:
-    """
-    Verify magic link token and sign in user.
-    
-    Returns:
-        {"status": "success|error", "message": "<message>", "user_id": "<uuid>", "email": "<email>"}
-    """
-    try:
-        ensure_db()
-        
-        # For now, we need to store the email in session state before calling this
-        # In a real app, we'd look up the email from the token
-        # For Streamlit, we'll handle this in app.py with query params
-        
-        # This is a placeholder; actual implementation will be in app.py
-        return {"status": "error", "message": "Invalid or expired magic link"}
-    except Exception as e:
-        return {"status": "error", "message": f"Error: {str(e)}"}
-
-
 def verify_magic_link_token(email: str, token: str) -> dict:
     """
     Verify magic link token for a specific email.
@@ -224,7 +204,6 @@ def verify_magic_link_token(email: str, token: str) -> dict:
         # Validate magic link token
         is_valid = db.validate_magic_link(email, token)
         if not is_valid:
-            print(f"DEBUG: Magic link validation failed for email={email}, token_length={len(token)}")
             return {"status": "error", "message": "Invalid or expired magic link"}
         
         # Create or get user (defaults to 'viewer' role for new users)
@@ -239,9 +218,7 @@ def verify_magic_link_token(email: str, token: str) -> dict:
         
         # Store refresh token in DB
         db.create_refresh_token(user_id, tokens["refresh_token"])
-        
-        print(f"DEBUG: Magic link verified successfully for user={user_id}, email={email}")
-        
+
         return {
             "status": "success",
             "user_id": user_id,
@@ -253,7 +230,6 @@ def verify_magic_link_token(email: str, token: str) -> dict:
             "refresh_token": tokens["refresh_token"],
         }
     except Exception as e:
-        print(f"DEBUG: Exception in verify_magic_link_token: {str(e)}")
         return {"status": "error", "message": f"Error: {str(e)}"}
 
 

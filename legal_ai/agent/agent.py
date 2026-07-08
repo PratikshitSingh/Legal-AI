@@ -28,7 +28,7 @@ try:
 finally:
     sys.stderr = old_stderr
 
-from legal_ai.core import config, utils, constants
+from legal_ai.core import config, utils
 
 
 class LegalChat:
@@ -169,7 +169,3 @@ class LegalChat:
             },
         )["answer"]
         return response
-
-
-# Alias matching upstream firica/legalai naming
-NewsChat = LegalChat
