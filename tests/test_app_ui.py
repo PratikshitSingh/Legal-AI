@@ -5,19 +5,12 @@ These run the real app.py script server-side (same code path as
 DB and vector-store calls are stubbed so the tests run without network access.
 """
 
-import os
-import sys
 from pathlib import Path
 
-import pytest
 from streamlit.testing.v1 import AppTest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
 APP_FILE = str(PROJECT_ROOT / "app.py")
-
-os.environ.setdefault("JWT_SECRET", "test-secret-for-app-ui-tests")
 
 
 def _make_apptest() -> AppTest:

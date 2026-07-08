@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "legal-ai"
+version = "0.1.0"
+description = "EU AI Act RAG assistant — Streamlit app with magic-link auth, Neon Postgres, and Chroma"
+requires-python = ">=3.11"
+# Dependencies live in requirements.txt (the Streamlit Cloud deploy manifest).
+# Sourcing them dynamically keeps the two manifests from drifting apart.
+dynamic = ["dependencies"]
+
+[tool.setuptools.packages.find]
+include = ["legal_ai*"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: needs live services (Neon DB, Chroma store, HF model downloads) via local .env; excluded in CI",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+# Start with correctness-critical rules only (syntax errors, undefined names);
+# the ruleset widens as the refactor phases land.
+select = ["E9", "F63", "F7", "F82"]

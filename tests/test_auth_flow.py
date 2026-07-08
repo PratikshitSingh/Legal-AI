@@ -10,23 +10,23 @@ Test scenarios:
 5. Sign out (revoke tokens)
 """
 
-import sys
 import os
-
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sys
 
 # This is an end-to-end script that WRITES to the real database configured in
 # .env (creates users, magic links, sessions). Under pytest, only run it when
 # explicitly requested; running it directly (`python tests/test_auth_flow.py`)
 # always works.
-if "pytest" in sys.modules and os.environ.get("RUN_E2E_DB_TESTS") != "1":
+if "pytest" in sys.modules:
     import pytest
 
-    pytest.skip(
-        "E2E DB tests write to the real database; set RUN_E2E_DB_TESTS=1 to run",
-        allow_module_level=True,
-    )
+    pytestmark = pytest.mark.integration
+
+    if os.environ.get("RUN_E2E_DB_TESTS") != "1":
+        pytest.skip(
+            "E2E DB tests write to the real database; set RUN_E2E_DB_TESTS=1 to run",
+            allow_module_level=True,
+        )
 
 from legal_ai.db import db
 from legal_ai.auth import jwt_utils
