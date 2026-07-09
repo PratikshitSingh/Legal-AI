@@ -83,6 +83,7 @@ class TestDocumentRecording:
         uploader_id = str(uuid4())  # Mock user ID
 
         # This may fail if user doesn't exist, but we're testing the function logic
+        result = None
         try:
             result = db.create_document_record(
                 name=doc_name,
