@@ -8,6 +8,7 @@ import streamlit as st
 from streamlit.components.v1 import html
 
 from legal_ai.core.constants import SessionKeys
+
 from . import jwt_utils
 
 logger = logging.getLogger(__name__)

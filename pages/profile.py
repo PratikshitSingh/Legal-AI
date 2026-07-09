@@ -2,9 +2,8 @@
 
 import streamlit as st
 
-from legal_ai.auth import auth
 from legal_ai import db
-from legal_ai.auth import rbac
+from legal_ai.auth import auth, rbac
 from legal_ai.core.constants import SessionKeys
 
 # Initialize auth - restores session from browser storage

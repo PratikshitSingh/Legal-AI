@@ -1,7 +1,7 @@
 """Auth token queries: magic links and refresh tokens (stored hashed)."""
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
 
@@ -11,7 +11,7 @@ from ._engine import get_engine, hash_token, with_retry
 @with_retry
 def create_magic_link(email: str, token: str, expires_in_minutes: int = 15) -> None:
     """Store magic link token (hashed) for passwordless auth."""
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_in_minutes)
+    expires_at = datetime.now(UTC) + timedelta(minutes=expires_in_minutes)
     engine = get_engine()
     with engine.begin() as conn:
         conn.execute(
@@ -79,7 +79,7 @@ def create_refresh_token(user_id: str, token: str, expires_in_days: int | None =
     if expires_in_days is None:
         expires_in_days = int(os.environ.get("JWT_REFRESH_EXPIRY_DAYS", 7))
 
-    expires_at = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
+    expires_at = datetime.now(UTC) + timedelta(days=expires_in_days)
     engine = get_engine()
     with engine.begin() as conn:
         conn.execute(

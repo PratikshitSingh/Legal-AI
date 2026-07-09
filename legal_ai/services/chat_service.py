@@ -5,8 +5,8 @@ ownership checks, message persistence, and agent caching all happen here so
 pages never talk to the agent or the message log directly.
 """
 
-from legal_ai.agent.agent import LegalChat
 from legal_ai import db
+from legal_ai.agent.agent import LegalChat
 from legal_ai.auth import jwt_utils
 
 # Process-global agent cache, keyed by chat session. Under Streamlit this is

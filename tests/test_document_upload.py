@@ -1,11 +1,12 @@
 """Test suite for admin document upload with duplicate detection."""
 
 import hashlib
-import pytest
 from uuid import uuid4
 
-from legal_ai.services import embed
+import pytest
+
 from legal_ai import db
+from legal_ai.services import embed
 
 
 class TestDocumentHash:
@@ -65,9 +66,9 @@ class TestDuplicateDetection:
 
         result = embed.check_duplicate_document(unique_name, unique_hash)
 
-        assert result["is_duplicate"] == False
+        assert result["is_duplicate"] is False
         assert result["existing_chunks"] == 0
-        assert result["existing_exact_match"] == False
+        assert result["existing_exact_match"] is False
 
 
 @pytest.mark.integration

@@ -1,8 +1,7 @@
 import pytest
 
-from legal_ai.auth import auth
-from legal_ai.auth import browser_storage
 import app
+from legal_ai.auth import auth, browser_storage
 
 
 class FakeSessionState(dict):
@@ -190,8 +189,8 @@ def test_magic_link_success_clears_query_params(monkeypatch):
     session_state = FakeSessionState()
     query_params = {"token": "magic-token", "email": "magic@example.com"}
 
-    monkeypatch.setattr(app.ST, "session_state", session_state, raising=False)
-    monkeypatch.setattr(app.ST, "query_params", query_params, raising=False)
+    monkeypatch.setattr(app.st, "session_state", session_state, raising=False)
+    monkeypatch.setattr(app.st, "query_params", query_params, raising=False)
     monkeypatch.setattr(
         app,
         "verify_magic_link_token",
@@ -208,13 +207,13 @@ def test_magic_link_success_clears_query_params(monkeypatch):
     )
     monkeypatch.setattr(app, "set_auth_tokens", lambda **kwargs: None)
     monkeypatch.setattr(app, "start_new_chat", lambda user_id: None)
-    monkeypatch.setattr(app.ST, "info", lambda *args, **kwargs: None)
-    monkeypatch.setattr(app.ST, "success", lambda *args, **kwargs: None)
-    monkeypatch.setattr(app.ST, "balloons", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app.st, "info", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app.st, "success", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app.st, "balloons", lambda *args, **kwargs: None)
     monkeypatch.setattr(app, "components_html", lambda *args, **kwargs: None)
-    monkeypatch.setattr(app.ST, "divider", lambda *args, **kwargs: None)
-    monkeypatch.setattr(app.ST, "spinner", lambda *args, **kwargs: DummySpinner())
-    monkeypatch.setattr(app.ST, "stop", lambda: (_ for _ in ()).throw(StopCalled()))
+    monkeypatch.setattr(app.st, "divider", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app.st, "spinner", lambda *args, **kwargs: DummySpinner())
+    monkeypatch.setattr(app.st, "stop", lambda: (_ for _ in ()).throw(StopCalled()))
 
     with pytest.raises(StopCalled):
         app.render_magic_link_verification("magic@example.com", "magic-token")
@@ -227,8 +226,8 @@ def test_magic_link_error_while_already_signed_in_reruns_without_error(monkeypat
     query_params = {"token": "stale-token", "email": "magic@example.com"}
     captured = {"error_called": False}
 
-    monkeypatch.setattr(app.ST, "session_state", session_state, raising=False)
-    monkeypatch.setattr(app.ST, "query_params", query_params, raising=False)
+    monkeypatch.setattr(app.st, "session_state", session_state, raising=False)
+    monkeypatch.setattr(app.st, "query_params", query_params, raising=False)
     monkeypatch.setattr(
         app,
         "verify_magic_link_token",
@@ -238,13 +237,13 @@ def test_magic_link_error_while_already_signed_in_reruns_without_error(monkeypat
         },
     )
     monkeypatch.setattr(app, "is_signed_in", lambda: True)
-    monkeypatch.setattr(app.ST, "info", lambda *args, **kwargs: None)
-    monkeypatch.setattr(app.ST, "divider", lambda *args, **kwargs: None)
-    monkeypatch.setattr(app.ST, "spinner", lambda *args, **kwargs: DummySpinner())
+    monkeypatch.setattr(app.st, "info", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app.st, "divider", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app.st, "spinner", lambda *args, **kwargs: DummySpinner())
     monkeypatch.setattr(
-        app.ST, "error", lambda *args, **kwargs: captured.update({"error_called": True})
+        app.st, "error", lambda *args, **kwargs: captured.update({"error_called": True})
     )
-    monkeypatch.setattr(app.ST, "rerun", lambda: (_ for _ in ()).throw(RerunCalled()))
+    monkeypatch.setattr(app.st, "rerun", lambda: (_ for _ in ()).throw(RerunCalled()))
 
     with pytest.raises(RerunCalled):
         app.render_magic_link_verification("magic@example.com", "stale-token")

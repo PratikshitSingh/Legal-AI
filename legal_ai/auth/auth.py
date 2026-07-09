@@ -8,12 +8,11 @@ from urllib.parse import quote
 import streamlit as st
 
 from legal_ai import db
-from legal_ai.services.email_service import send_magic_link_email
 from legal_ai.core import settings
 from legal_ai.core.constants import SessionKeys
-from . import browser_storage
-from . import jwt_utils
-from . import rbac
+from legal_ai.services.email_service import send_magic_link_email
+
+from . import browser_storage, jwt_utils, rbac
 
 logger = logging.getLogger(__name__)
 

@@ -41,9 +41,9 @@ def test_signed_out_shows_sign_in_form(monkeypatch):
 
 def test_signed_in_renders_chat(monkeypatch):
     """With a valid session, the sidebar and chat input must render."""
+    from legal_ai import db
     from legal_ai.auth import jwt_utils
     from legal_ai.core import tracing
-    from legal_ai import db
     from legal_ai.services import chat_service, vector_store
 
     user_id = "11111111-1111-1111-1111-111111111111"
@@ -95,8 +95,8 @@ def test_signed_in_renders_chat(monkeypatch):
 
 def test_expired_session_signs_out(monkeypatch):
     """If token refresh fails, the app must warn and sign the user out."""
-    from legal_ai.core import tracing
     from legal_ai import db
+    from legal_ai.core import tracing
 
     monkeypatch.setattr(tracing, "setup_langfuse_tracing", lambda: None)
     monkeypatch.setattr(

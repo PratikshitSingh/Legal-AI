@@ -2,8 +2,8 @@
 
 import streamlit as st
 
-from legal_ai.auth.auth import is_signed_in, init_auth
 from legal_ai import db
+from legal_ai.auth.auth import init_auth, is_signed_in
 from legal_ai.services.jurisdiction_retriever import JurisdictionAwareRetriever
 
 # Initialize auth - restores session from browser storage
@@ -159,7 +159,7 @@ if st.button("🔎 Search & Compare", type="primary", use_container_width=True):
                         - {jurisdiction_1_name}: {len(results_1)} relevant document(s) found
                         - {jurisdiction_2_name}: {len(results_2)} relevant document(s) found
                         - Average relevance score: {avg_relevance:.1%}
-                        
+
                         **Recommendations:**
                         1. Review the most relevant sections (highest relevance scores)
                         2. Compare language and requirements between jurisdictions

@@ -6,17 +6,17 @@ from legal_ai.core.logging import configure_logging
 # LLM/embedding stack.
 configure_logging()
 
-import streamlit as ST
+import streamlit as st
 from streamlit.components.v1 import html as components_html
 
-from legal_ai.core import tracing
-from legal_ai.core.constants import SessionKeys
-from legal_ai.services import vector_store
+from legal_ai import db
+from legal_ai.auth import browser_storage
 from legal_ai.auth.auth import (
-    get_or_create_session_id,
+    get_current_access_token,
     get_current_user_email,
     get_current_user_id,
-    get_current_access_token,
+    get_or_create_session_id,
+    init_auth,
     is_signed_in,
     list_past_chats,
     refresh_access_token_if_needed,
@@ -26,47 +26,45 @@ from legal_ai.auth.auth import (
     start_new_chat,
     switch_to_session,
     verify_magic_link_token,
-    init_auth,
 )
-from legal_ai.auth import browser_storage
-from legal_ai import db
-from legal_ai.services import chat_service
-
+from legal_ai.core import tracing
+from legal_ai.core.constants import SessionKeys
+from legal_ai.services import chat_service, vector_store
 
 CHAT_UI_KEY = "chat1"
 
 
 def load_ui_messages(session_id: str) -> None:
     rows = db.get_session_messages(session_id)
-    ST.session_state[SessionKeys.MESSAGES] = [
+    st.session_state[SessionKeys.MESSAGES] = [
         {"id": CHAT_UI_KEY, "role": row["role"], "content": row["content"]} for row in rows
     ]
 
 
 def render_sign_in() -> None:
     """Render passwordless email sign-in form."""
-    ST.subheader("Sign in to Legal AI")
-    ST.caption("Enter your email to receive a magic link for passwordless sign-in.")
+    st.subheader("Sign in to Legal AI")
+    st.caption("Enter your email to receive a magic link for passwordless sign-in.")
 
-    with ST.form("magic_link_form"):
-        email = ST.text_input(
+    with st.form("magic_link_form"):
+        email = st.text_input(
             "Email",
             placeholder="your.email@law-firm.com",
             help="We'll send you a link to sign in securely",
         )
-        submitted = ST.form_submit_button("Send Magic Link")
+        submitted = st.form_submit_button("Send Magic Link")
 
     if submitted:
         if not email:
-            ST.error("Please enter an email address.")
+            st.error("Please enter an email address.")
             return
 
         result = request_magic_link(email)
         if result["status"] == "success":
-            ST.success(result["message"])
-            ST.info("Check your email for the sign-in link. It expires in 15 minutes.")
+            st.success(result["message"])
+            st.info("Check your email for the sign-in link. It expires in 15 minutes.")
         else:
-            ST.error(result["message"])
+            st.error(result["message"])
 
 
 def render_magic_link_verification(email: str, token: str) -> None:
@@ -74,15 +72,15 @@ def render_magic_link_verification(email: str, token: str) -> None:
     # Avoid re-validating already-consumed token when this run is a duplicate
     # (browser prefetch, reloads, or stale verification URL).
     verified_marker = f"{email}:{token}"
-    if is_signed_in() and verified_marker == ST.session_state.get(
+    if is_signed_in() and verified_marker == st.session_state.get(
         SessionKeys.LAST_VERIFIED_MAGIC_LINK
     ):
-        ST.query_params.clear()
-        ST.rerun()
+        st.query_params.clear()
+        st.rerun()
 
-    ST.info(f"🔐 Verifying your sign-in link for {email}...")
+    st.info(f"🔐 Verifying your sign-in link for {email}...")
 
-    with ST.spinner("Checking your magic link..."):
+    with st.spinner("Checking your magic link..."):
         result = verify_magic_link_token(email, token)
 
     if result["status"] == "success":
@@ -96,11 +94,11 @@ def render_magic_link_verification(email: str, token: str) -> None:
             full_name=result.get("full_name"),
             firm=result.get("firm"),
         )
-        ST.session_state[SessionKeys.LAST_VERIFIED_MAGIC_LINK] = verified_marker
-        ST.query_params.clear()
-        ST.success(f"✅ Welcome, {result['email']}!")
+        st.session_state[SessionKeys.LAST_VERIFIED_MAGIC_LINK] = verified_marker
+        st.query_params.clear()
+        st.success(f"✅ Welcome, {result['email']}!")
         start_new_chat(result["user_id"])
-        ST.balloons()
+        st.balloons()
         # Do a client-side redirect shortly after success so the cookie write from
         # `set_auth_tokens` has time to persist before the app loads again.
         # NOTE: must use components.html — st.markdown/st.html never execute
@@ -119,73 +117,73 @@ def render_magic_link_verification(email: str, token: str) -> None:
             """,
             height=0,
         )
-        ST.stop()
+        st.stop()
     else:
         # If auth is already present, treat this as a stale/duplicate verify attempt
         # and continue into the signed-in app instead of showing a false negative.
         if is_signed_in():
-            ST.query_params.clear()
-            ST.rerun()
+            st.query_params.clear()
+            st.rerun()
 
         error_msg = result.get("message", "Invalid or expired link. Please request a new one.")
-        ST.error(f"❌ {error_msg}")
-        ST.divider()
-        if ST.button("← Back to Sign In"):
-            ST.rerun()
+        st.error(f"❌ {error_msg}")
+        st.divider()
+        if st.button("← Back to Sign In"):
+            st.rerun()
 
 
 def render_magic_link_email_prompt(token: str) -> None:
     """Prompt user to enter email for magic link verification."""
-    ST.subheader("✉️ Complete your sign-in")
-    ST.write("Enter your email address to verify the magic link.")
+    st.subheader("✉️ Complete your sign-in")
+    st.write("Enter your email address to verify the magic link.")
 
-    col1, col2 = ST.columns([3, 1])
+    col1, col2 = st.columns([3, 1])
     with col1:
-        email = ST.text_input(
+        email = st.text_input(
             "Email", placeholder="your.email@law-firm.com", key="magic_link_email_input"
         )
     with col2:
-        clicked = ST.button("Verify", use_container_width=True, key="verify_btn")
+        clicked = st.button("Verify", use_container_width=True, key="verify_btn")
 
     if clicked:
         if not email:
-            ST.error("❌ Please enter your email address.")
-            ST.stop()
+            st.error("❌ Please enter your email address.")
+            st.stop()
         else:
             render_magic_link_verification(email.strip().lower(), token)
 
 
 def render_sidebar(session_id: str) -> None:
     user = get_current_user_email()
-    with ST.sidebar:
-        ST.subheader("Account")
-        ST.text(f"Signed in as {user}")
+    with st.sidebar:
+        st.subheader("Account")
+        st.text(f"Signed in as {user}")
 
         # Display user role if available
         from legal_ai.auth import auth as auth_module
 
         user_role = auth_module.get_current_user_role()
         role_emoji = {"admin": "👑", "editor": "✏️", "viewer": "👁️"}.get(user_role, "👤")
-        ST.caption(f"{role_emoji} Role: {user_role}")
+        st.caption(f"{role_emoji} Role: {user_role}")
 
-        col1, col2 = ST.columns(2)
+        col1, col2 = st.columns(2)
         with col1:
-            if ST.button("👤 Profile", use_container_width=True):
-                ST.switch_page("pages/profile.py")
+            if st.button("👤 Profile", use_container_width=True):
+                st.switch_page("pages/profile.py")
 
         with col2:
             if auth_module.is_admin():
-                if ST.button("👑 Admin", use_container_width=True):
-                    ST.switch_page("pages/admin.py")
+                if st.button("👑 Admin", use_container_width=True):
+                    st.switch_page("pages/admin.py")
 
-        if ST.button("Sign out", use_container_width=True):
+        if st.button("Sign out", use_container_width=True):
             chat_service.clear_chat_cache()
             sign_out()
-            ST.rerun()
+            st.rerun()
 
         # Jurisdiction Filter
-        ST.divider()
-        ST.subheader("🌍 Jurisdictions")
+        st.divider()
+        st.subheader("🌍 Jurisdictions")
 
         try:
             # Get user's current jurisdictions
@@ -204,7 +202,7 @@ def render_sidebar(session_id: str) -> None:
             jurisdiction_options = {j["name"]: j["jurisdiction_id"] for j in jurisdictions}
 
             # Multi-select jurisdictions
-            selected_names = ST.multiselect(
+            selected_names = st.multiselect(
                 "Select jurisdictions to search:",
                 options=list(jurisdiction_options.keys()),
                 default=[j["name"] for j in jurisdictions if j["jurisdiction_id"] in current_ids],
@@ -214,33 +212,33 @@ def render_sidebar(session_id: str) -> None:
             # Save user preferences
             selected_ids = [jurisdiction_options[name] for name in selected_names]
             if selected_ids and selected_ids != current_ids:
-                if ST.button(
+                if st.button(
                     "✅ Save Preferences", use_container_width=True, key="save_jurisdictions"
                 ):
                     db.update_user_jurisdictions(user_id, selected_ids)
-                    ST.success("Jurisdiction preferences saved!")
-                    ST.rerun()
+                    st.success("Jurisdiction preferences saved!")
+                    st.rerun()
 
             # Store selected jurisdictions in session state for queries
-            ST.session_state[SessionKeys.SELECTED_JURISDICTIONS] = selected_ids
+            st.session_state[SessionKeys.SELECTED_JURISDICTIONS] = selected_ids
 
             # Add comparison page button
-            if ST.button("⚖️ Compare Jurisdictions", use_container_width=True):
-                ST.switch_page("pages/compare.py")
+            if st.button("⚖️ Compare Jurisdictions", use_container_width=True):
+                st.switch_page("pages/compare.py")
 
         except Exception as e:
-            ST.warning(f"Could not load jurisdictions: {str(e)}")
+            st.warning(f"Could not load jurisdictions: {str(e)}")
 
-        ST.divider()
-        ST.subheader("Chats")
-        if ST.button("New chat", use_container_width=True):
+        st.divider()
+        st.subheader("Chats")
+        if st.button("New chat", use_container_width=True):
             chat_service.clear_chat_cache()
             start_new_chat()
-            ST.rerun()
+            st.rerun()
 
         past = list_past_chats()
         if not past:
-            ST.caption("No past chats yet.")
+            st.caption("No past chats yet.")
             return
 
         for chat in past:
@@ -248,7 +246,7 @@ def render_sidebar(session_id: str) -> None:
             preview = ((chat.get("last_message") or "").strip() or "Untitled chat")[:60]
             label = f"{preview}…" if len(preview) >= 60 else preview
             is_active = sid == session_id
-            if ST.button(
+            if st.button(
                 label,
                 key=f"session_{sid}",
                 use_container_width=True,
@@ -258,34 +256,34 @@ def render_sidebar(session_id: str) -> None:
                     chat_service.clear_chat_cache(sid)
                     switch_to_session(sid)
                     load_ui_messages(sid)
-                    ST.rerun()
+                    st.rerun()
 
         chroma_mode = "Chroma Cloud" if vector_store.use_chroma_cloud() else "local"
-        ST.divider()
-        ST.caption(f"Session: {session_id[:8]}… · Vector store: {chroma_mode}")
+        st.divider()
+        st.caption(f"Session: {session_id[:8]}… · Vector store: {chroma_mode}")
 
 
 def create_chat(chat_id: str, session_id: str) -> None:
-    chat = ST.container()
+    chat = st.container()
 
-    if SessionKeys.MESSAGES not in ST.session_state:
-        ST.session_state[SessionKeys.MESSAGES] = []
+    if SessionKeys.MESSAGES not in st.session_state:
+        st.session_state[SessionKeys.MESSAGES] = []
 
-    for message in ST.session_state[SessionKeys.MESSAGES]:
+    for message in st.session_state[SessionKeys.MESSAGES]:
         if message["id"] == chat_id:
             chat.chat_message(message["role"]).write(message["content"])
 
-    if prompt := ST.chat_input(
+    if prompt := st.chat_input(
         placeholder="Ask me about AI legal stuff in the EU",
         key=chat_id,
     ):
         chat.chat_message("user").write(prompt)
-        with ST.spinner("Wait for it..."):
+        with st.spinner("Wait for it..."):
             # Get current access token
             access_token = get_current_access_token()
 
             # Get selected jurisdictions from session state
-            jurisdiction_ids = ST.session_state.get(SessionKeys.SELECTED_JURISDICTIONS, [])
+            jurisdiction_ids = st.session_state.get(SessionKeys.SELECTED_JURISDICTIONS, [])
 
             assistant_response = chat_service.route_query(
                 question=prompt,
@@ -295,16 +293,16 @@ def create_chat(chat_id: str, session_id: str) -> None:
             )
             chat.chat_message("assistant").write(assistant_response)
 
-        ST.session_state[SessionKeys.MESSAGES].append(
+        st.session_state[SessionKeys.MESSAGES].append(
             {"id": chat_id, "role": "user", "content": prompt}
         )
-        ST.session_state[SessionKeys.MESSAGES].append(
+        st.session_state[SessionKeys.MESSAGES].append(
             {"id": chat_id, "role": "assistant", "content": assistant_response}
         )
 
 
 if __name__ == "__main__":
-    ST.set_page_config(page_title="Legal-AI", page_icon="⚖️")
+    st.set_page_config(page_title="Legal-AI", page_icon="⚖️")
 
     # Initialize auth - restores session from browser storage or query params
     init_auth()
@@ -318,59 +316,59 @@ if __name__ == "__main__":
     # Initialize tracing (LangFuse)
     tracing.setup_langfuse_tracing()
 
-    ST.title("Legal-AI")
-    ST.caption("EU AI Act RAG assistant — multi-turn conversational retrieval")
+    st.title("Legal-AI")
+    st.caption("EU AI Act RAG assistant — multi-turn conversational retrieval")
 
     # ========================================================================
     # Handle magic link verification from URL query params
     # ========================================================================
-    token = ST.query_params.get("token")
-    email_from_link = ST.query_params.get("email")
+    token = st.query_params.get("token")
+    email_from_link = st.query_params.get("email")
 
     if token:
         if is_signed_in():
-            ST.query_params.clear()
+            st.query_params.clear()
         elif email_from_link:
             # Email is in the link - verify directly
             # Normalize email (strip and lowercase)
             email_from_link = email_from_link.strip().lower()
-            ST.divider()
+            st.divider()
             render_magic_link_verification(email_from_link, token)
-            ST.stop()
+            st.stop()
         else:
             # No email in link - ask user to enter it
-            ST.divider()
+            st.divider()
             render_magic_link_email_prompt(token)
-            ST.stop()
+            st.stop()
 
     # ========================================================================
     # Check if user is signed in
     # ========================================================================
     if not is_signed_in():
         render_sign_in()
-        ST.stop()
+        st.stop()
 
     # ========================================================================
     # Refresh access token if needed
     # ========================================================================
     if not refresh_access_token_if_needed():
-        ST.warning("Your session has expired. Please sign in again.")
+        st.warning("Your session has expired. Please sign in again.")
         sign_out()
-        ST.rerun()
+        st.rerun()
 
     if not vector_store.collection_has_documents():
-        ST.error(
+        st.error(
             "Vector store is empty. Run offline ingest first:\n\n"
             "```bash\npython scripts/ingest.py\n```\n\n"
             "Requires `GEMINI_API_KEY` and Chroma credentials in `.env`."
         )
-        ST.stop()
+        st.stop()
 
-    if SessionKeys.SESSION_ID not in ST.session_state:
+    if SessionKeys.SESSION_ID not in st.session_state:
         start_new_chat()
 
     session_id = get_or_create_session_id()
-    if SessionKeys.MESSAGES not in ST.session_state:
+    if SessionKeys.MESSAGES not in st.session_state:
         load_ui_messages(session_id)
 
     render_sidebar(session_id)

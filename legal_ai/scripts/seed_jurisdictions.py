@@ -19,7 +19,7 @@ DEFAULT_SEED_FILE = Path(__file__).resolve().parent.parent / "data" / "jurisdict
 
 def load_jurisdictions_from_file(file_path: str | Path = DEFAULT_SEED_FILE) -> dict:
     """Load jurisdiction hierarchy from JSON file."""
-    with open(file_path, "r") as f:
+    with open(file_path) as f:
         return json.load(f)
 
 

@@ -1,11 +1,10 @@
 """Admin Dashboard - Manage users and roles."""
 
-import streamlit as st
 import pandas as pd
+import streamlit as st
 
-from legal_ai.auth import auth
 from legal_ai import db
-from legal_ai.auth import rbac
+from legal_ai.auth import auth, rbac
 from legal_ai.services import document_service
 
 # Initialize auth - restores session from browser storage
@@ -488,7 +487,7 @@ with tab4:
             - `description` (optional): Document description
             - `jurisdiction` (optional): Jurisdiction code (e.g., "EU", "US")
             - `document_type` (optional): Type of document (regulation, directive, etc.)
-            
+
             **Example:**
             ```
             file_path,document_name,description,jurisdiction,document_type

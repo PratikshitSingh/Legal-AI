@@ -96,8 +96,8 @@ def send_magic_link_email(email: str, magic_link_url: str) -> bool:
             <h2>Sign in to Legal AI</h2>
             <p>Click the link below to sign in:</p>
             <p>
-                <a href="{magic_link_url}" 
-                   style="display: inline-block; padding: 10px 20px; background-color: #007bff; 
+                <a href="{magic_link_url}"
+                   style="display: inline-block; padding: 10px 20px; background-color: #007bff;
                           color: white; text-decoration: none; border-radius: 5px;">
                     Sign In
                 </a>

@@ -70,7 +70,7 @@ Legal-AI/
 │   ├── db/
 │   │   └── db.py                            # ✅ Added 6 jurisdiction query functions
 │   └── services/
-│       ├── gateway.py                       # ✅ Added jurisdiction_ids parameter
+│       ├── chat_service.py                       # ✅ Added jurisdiction_ids parameter
 │       └── jurisdiction_retriever.py        # ✅ Created (retriever service)
 └── PHASE_3_TESTING_GUIDE.md                 # ✅ Comprehensive testing guide
 ```
@@ -88,7 +88,7 @@ source .venv/bin/activate
 python --version  # Should be 3.11+
 
 # Verify database connection
-echo $DATABASE_URL
+echo $NEON_DB_DATABASE_URL
 ```
 
 ### Issue: Magic link not received
@@ -113,7 +113,7 @@ echo $EMAIL_FROM
 
 ```bash
 # Connect to Neon PostgreSQL
-psql $DATABASE_URL
+psql $NEON_DB_DATABASE_URL
 
 # Verify migrations applied
 \dt                    # List all tables
@@ -143,7 +143,7 @@ SELECT COUNT(*) FROM jurisdictions;
 
 ### 2. Cross-Jurisdiction Comparison Page
 ```python
-# Location: legal_ai/pages/compare.py
+# Location: pages/compare.py
 # Features:
 # - Dual jurisdiction selector
 # - Query search input
@@ -153,7 +153,7 @@ SELECT COUNT(*) FROM jurisdictions;
 
 ### 3. Enhanced Admin Documents Tab
 ```python
-# Location: legal_ai/pages/admin.py
+# Location: pages/admin.py
 # Sub-tabs:
 # - Upload: File upload with jurisdiction & type selectors
 # - Browse: Document list with filters and sort options
@@ -183,7 +183,7 @@ JurisdictionAwareRetriever
 └── get_jurisdiction_info()               # Fetch jurisdiction metadata
 ```
 
-### Gateway Integration (legal_ai/services/gateway.py)
+### Gateway Integration (legal_ai/services/chat_service.py)
 ```python
 route_query(
     question: str,

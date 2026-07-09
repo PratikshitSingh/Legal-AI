@@ -2,7 +2,7 @@
 
 import os
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 
@@ -39,7 +39,7 @@ def create_access_token(user_id: str, expires_in_seconds: int | None = None) -> 
     if expires_in_seconds is None:
         expires_in_seconds = get_access_token_expiry_seconds()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expires_at = now + timedelta(seconds=expires_in_seconds)
 
     payload = {

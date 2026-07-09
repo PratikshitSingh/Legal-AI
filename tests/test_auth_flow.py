@@ -86,7 +86,7 @@ def test_user_profile_fields():
         assert user["full_name"] == full_name, "Full name mismatch"
         assert user["firm"] == firm, "Firm mismatch"
         assert user["role"] == role, "Role mismatch"
-        print(f"  ✓ User profile verified:")
+        print("  ✓ User profile verified:")
         print(f"    - Name: {user['full_name']}")
         print(f"    - Firm: {user['firm']}")
         print(f"    - Role: {user['role']}")
@@ -107,13 +107,13 @@ def test_update_user_profile(user_id: str):
 
         success = db.update_user_profile(user_id, full_name=new_name, firm=new_firm)
         assert success, "Profile update failed"
-        print(f"  ✓ Profile updated")
+        print("  ✓ Profile updated")
 
         # Verify update
         user = db.get_user_by_id(user_id)
         assert user["full_name"] == new_name, "Full name not updated"
         assert user["firm"] == new_firm, "Firm not updated"
-        print(f"  ✓ Profile changes verified:")
+        print("  ✓ Profile changes verified:")
         print(f"    - Name: {user['full_name']}")
         print(f"    - Firm: {user['firm']}")
 
@@ -131,7 +131,7 @@ def test_role_assignment(admin_user_id: str, user_id: str):
         new_role = "editor"
         success = db.update_user_role(user_id, new_role, changed_by_user_id=admin_user_id)
         assert success, "Role assignment failed"
-        print(f"  ✓ Role assigned to 'editor'")
+        print("  ✓ Role assigned to 'editor'")
 
         # Verify role change
         user = db.get_user_by_id(user_id)
@@ -141,7 +141,7 @@ def test_role_assignment(admin_user_id: str, user_id: str):
         # Try invalid role
         success = db.update_user_role(user_id, "invalid_role", changed_by_user_id=admin_user_id)
         assert not success, "Should reject invalid role"
-        print(f"  ✓ Invalid role correctly rejected")
+        print("  ✓ Invalid role correctly rejected")
 
         return True
     except Exception as e:
@@ -187,12 +187,12 @@ def test_magic_link_flow(email: str):
         # Validate magic link
         is_valid = db.validate_magic_link(email, magic_token)
         assert is_valid, "Magic link validation failed"
-        print(f"  ✓ Magic link validated successfully")
+        print("  ✓ Magic link validated successfully")
 
         # Try to validate again (should fail - already used)
         is_valid = db.validate_magic_link(email, magic_token)
         assert not is_valid, "Used magic link should be invalid"
-        print(f"  ✓ Used magic link correctly rejected")
+        print("  ✓ Used magic link correctly rejected")
 
         return True
     except Exception as e:
@@ -227,7 +227,7 @@ def test_jwt_tokens(user_id: str):
         # Check token expiry
         is_expired = jwt_utils.is_access_token_expired(access_token)
         assert not is_expired, "Fresh token should not be expired"
-        print(f"  ✓ Token expiry check passed")
+        print("  ✓ Token expiry check passed")
 
         return True, access_token, refresh_token
     except Exception as e:
@@ -241,18 +241,18 @@ def test_refresh_token_flow(user_id: str, refresh_token: str):
     try:
         # Store refresh token in DB
         db.create_refresh_token(user_id, refresh_token, expires_in_days=7)
-        print(f"  ✓ Refresh token stored in database")
+        print("  ✓ Refresh token stored in database")
 
         # Validate refresh token
         is_valid = db.validate_refresh_token(user_id, refresh_token)
         assert is_valid, "Refresh token validation failed"
-        print(f"  ✓ Refresh token validated")
+        print("  ✓ Refresh token validated")
 
         # Create new access token using refresh token
         secret = os.environ.get("JWT_SECRET")
         if secret:
-            new_access_token = jwt_utils.create_access_token(user_id)
-            print(f"  ✓ New access token created from refresh token")
+            assert jwt_utils.create_access_token(user_id)
+            print("  ✓ New access token created from refresh token")
 
         return True
     except Exception as e:
@@ -266,11 +266,11 @@ def test_token_revocation(user_id: str):
     try:
         # Revoke all refresh tokens
         db.revoke_refresh_tokens(user_id)
-        print(f"  ✓ Refresh tokens revoked for user")
+        print("  ✓ Refresh tokens revoked for user")
 
         # Try to validate a revoked token (should fail)
         # Note: We don't have the token here, but the DB records are revoked
-        print(f"  ✓ Revocation verified")
+        print("  ✓ Revocation verified")
 
         return True
     except Exception as e:
@@ -339,7 +339,7 @@ def test_email_service():
         magic_link_url = "http://localhost:8501/auth/verify?token=test_token_12345"
         success = send_magic_link_email("test@example.com", magic_link_url)
         assert success, "Email send failed"
-        print(f"  ✓ Magic link email sent successfully (check console output above)")
+        print("  ✓ Magic link email sent successfully (check console output above)")
 
         return True
     except Exception as e:

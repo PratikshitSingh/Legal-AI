@@ -8,11 +8,11 @@ Technically it is a RAG system implementation, using:
 
 - **LLM** — Gemini 2.5 Flash (with streaming support)
 - **Vector Database** — ChromaDB (with Cloud support)
-- **Embeddings** — HuggingFace (all-mpnet-base-v2) & Gemini
+- **Embeddings** — HuggingFace sentence-transformers (all-mpnet-base-v2)
 - **Orchestration** — LangChain with history-aware retriever
 - **Frontend** — Streamlit with session persistence
-- **Authentication** — JWT-based with PostgreSQL session store
-- **Database** — PostgreSQL with SQLAlchemy ORM
+- **Authentication** — Magic links + JWT with PostgreSQL session store
+- **Database** — PostgreSQL (Neon) via SQLAlchemy Core
 - **Monitoring** — Langfuse for tracing and observability
 - **Email** — SendGrid for magic link authentication
 
@@ -32,22 +32,24 @@ Create a `.env` file in the project root with the following variables:
 
 **Required:**
 - `GEMINI_API_KEY` — Google Gemini API key (get free key at [Google AI Studio](https://aistudio.google.com/apikey))
-- `DATABASE_URL` — PostgreSQL connection string (e.g., `postgresql://user:password@localhost/legal_ai`)
+- `NEON_DB_DATABASE_URL` — PostgreSQL connection string (e.g., `postgresql://user:password@host/legal_ai`)
+- `JWT_SECRET` — Secret key for JWT token signing
 
 **Optional (for cloud deployment):**
 - `CHROMA_API_KEY` — Chroma Cloud API key
 - `CHROMA_TENANT` — Chroma Cloud tenant name
 - `CHROMA_DATABASE` — Chroma Cloud database name
-- `JWT_SECRET` — Secret key for JWT token signing
-- `SENDGRID_API_KEY` — SendGrid API key for email authentication
+- `SENDGRID_API_KEY` — SendGrid API key for email authentication (or set `EMAIL_PROVIDER=local` to print magic links to the console)
 - `EMAIL_FROM` — Sender email address
+- `APP_BASE_URL` — Overrides the magic-link base URL from `config.yaml`
 - `LANGFUSE_PUBLIC_KEY` — Langfuse public key for tracing
 - `LANGFUSE_SECRET_KEY` — Langfuse secret key
+- `LOG_LEVEL` — Application log level (default `INFO`)
 
 **Example `.env`:**
 ```bash
 GEMINI_API_KEY=your_api_key_here
-DATABASE_URL=postgresql://localhost/legal_ai
+NEON_DB_DATABASE_URL=postgresql://user:password@host/legal_ai
 JWT_SECRET=your_secret_key
 SENDGRID_API_KEY=your_sendgrid_key
 EMAIL_FROM=noreply@legal-ai.app
@@ -57,21 +59,24 @@ LANGFUSE_SECRET_KEY=your_secret_key
 
 ### Database Setup
 
-For local development with PostgreSQL:
+Two mechanisms create the schema, and **both are required**:
+
+1. Auth/session tables (`users`, `magic_links`, `refresh_tokens`, `sessions`, `audit_log`, roles) are created lazily by the app on first use (`db.init_db()`).
+2. Document/jurisdiction tables come from the SQL migrations:
 
 ```bash
-# Create database
-createdb legal_ai
-
-# The application will create tables automatically on first run
+python scripts/run_migrations.py
+python -m legal_ai.scripts.seed_jurisdictions   # loads the jurisdiction hierarchy
 ```
+
+There is no migration version tracking yet — every migration is idempotent and safe to re-run.
 
 ### Ingest the EU AI Act (required before first chat)
 
 Download the PDF and embed it into Chroma **offline** (not at app startup):
 
 ```bash
-python embed.py
+python scripts/ingest.py            # or: python -m legal_ai.services.embed
 ```
 
 This caches the PDF at `data/eu_ai_act.pdf` (gitignored) and writes embeddings to local `chroma_storage/` or Chroma Cloud, depending on your `.env`. Expect several minutes on first run.
@@ -79,10 +84,10 @@ This caches the PDF at `data/eu_ai_act.pdf` (gitignored) and writes embeddings t
 To re-ingest after changing the embedding model:
 
 ```bash
-python embed.py --force
+python scripts/ingest.py --force
 ```
 
-For local-only setups, you can also delete `chroma_storage/` and re-run `python embed.py`.
+For local-only setups, you can also delete `chroma_storage/` and re-run the ingest.
 
 ### Run the app
 
@@ -94,17 +99,20 @@ streamlit run app.py
 
 ![Legal AI Architecture Diagram](Legal-AI-Architecture.drawio.png)
 
-The system implements a comprehensive RAG pipeline with the following components:
+The system is a layered RAG pipeline — UI → services → auth/db → core:
 
 | Module | Role |
 |--------|------|
-| `app.py` | Streamlit client with chat UI and session management |
-| `gateway.py` | API gateway with JWT validation and request routing |
-| `auth.py` | Session identity management (PostgreSQL in production) |
-| `agent.py` | Query orchestrator + conversational RAG with history awareness |
-| `embed.py` | Offline document ingestion and embedding pipeline |
-| `db.py` | Database abstraction for session and message storage |
-| `utils.py` | Configuration loading and utility functions |
+| `app.py`, `pages/` | Streamlit UI: chat, profile, admin, jurisdiction comparison |
+| `legal_ai/services/chat_service.py` | Query routing: JWT validation, session ownership, agent cache, message persistence |
+| `legal_ai/services/document_service.py` | Admin upload orchestration: preflight, ingestion, CSV bulk import |
+| `legal_ai/services/embed.py` | Offline document ingestion and embedding pipeline (CLI: `python -m legal_ai.services.embed`) |
+| `legal_ai/services/vector_store.py` | Single home for the Chroma client, collection, and embedding function |
+| `legal_ai/agent/agent.py` | Conversational RAG agent (history-aware retriever, Gemini) |
+| `legal_ai/auth/` | Magic-link auth, JWT/session state, browser-cookie persistence, RBAC |
+| `legal_ai/db/` | Postgres access split by domain (users, tokens, sessions, documents, jurisdictions) behind one facade |
+| `legal_ai/core/` | Settings (single dotenv entry), logging, constants, Langfuse tracing |
+| `scripts/` | Operational entry points: `ingest.py`, `run_migrations.py` |
 
 **Key Features:**
 - History-aware retriever for context-aware responses
@@ -112,6 +120,14 @@ The system implements a comprehensive RAG pipeline with the following components
 - JWT-based authentication for production deployments
 - Support for multiple document ingestion sources
 - Integration with Langfuse for tracing and monitoring
+
+### Development
+
+```bash
+pip install ruff pytest
+ruff check .                          # lint (CI-gated)
+pytest tests/ -m "not integration"    # unit suite (CI-gated); integration tests need live services
+```
 
 ## Deployment
 

@@ -5,8 +5,8 @@ hash → duplicate-check → embed → record → audit) lives here.
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 from uuid import UUID
 
 from legal_ai import db

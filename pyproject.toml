@@ -28,6 +28,21 @@ target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-# Start with correctness-critical rules (syntax errors, undefined names,
-# unused imports); the ruleset widens as the refactor phases land.
-select = ["E9", "F401", "F63", "F7", "F82"]
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "I",  # import sorting
+    "W",  # pycodestyle warnings
+    "UP", # pyupgrade
+]
+# The formatter owns code line length; E501 would only flag unbreakable
+# content inside embedded SQL/JS/HTML strings.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Entry points that must run bootstrap code (logging config / sys.path)
+# before their imports.
+"app.py" = ["E402"]
+"scripts/*.py" = ["E402"]
+"legal_ai/__init__.py" = ["E402"]
+"tests/test_auth_flow.py" = ["E402"]
