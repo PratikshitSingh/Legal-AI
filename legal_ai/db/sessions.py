@@ -6,7 +6,9 @@ from ._engine import get_engine, with_retry
 
 
 @with_retry
-def upsert_session(session_id: str, user_id: str | None = None, display_user: str = "demo-user") -> None:
+def upsert_session(
+    session_id: str, user_id: str | None = None, display_user: str = "demo-user"
+) -> None:
     """Create or update a chat session."""
     engine = get_engine()
     with engine.begin() as conn:

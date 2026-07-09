@@ -93,7 +93,9 @@ def setup_langfuse_tracing() -> None:
     _state.project_name = project_name
 
     if not public_key or not secret_key:
-        _state.status_message = "Langfuse tracing is enabled in config, but credentials are missing."
+        _state.status_message = (
+            "Langfuse tracing is enabled in config, but credentials are missing."
+        )
         _state.enabled = False
         logger.warning(
             "Langfuse enabled but credentials not found. Set LANGFUSE_PUBLIC_KEY and "

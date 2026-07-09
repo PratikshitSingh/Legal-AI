@@ -1,13 +1,17 @@
-"""API Gateway stub for Streamlit MVP.
+"""Chat service: validates the caller, owns agent instances, routes queries.
 
-Production (per architecture diagram): HTTPS routing, JWT validation, forwards
-legal queries with session_id to the query orchestrator.
+This is the seam between the UI and the RAG agent — JWT validation, session
+ownership checks, message persistence, and agent caching all happen here so
+pages never talk to the agent or the message log directly.
 """
 
 from legal_ai.agent.agent import LegalChat
 from legal_ai import db
 from legal_ai.auth import jwt_utils
 
+# Process-global agent cache, keyed by chat session. Under Streamlit this is
+# shared by every user of the server process; entries are evicted only via
+# clear_chat_cache (sign-out, new chat, chat switch).
 _chats: dict[str, LegalChat] = {}
 
 

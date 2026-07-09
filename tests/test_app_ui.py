@@ -44,7 +44,7 @@ def test_signed_in_renders_chat(monkeypatch):
     from legal_ai.auth import jwt_utils
     from legal_ai.core import tracing
     from legal_ai import db
-    from legal_ai.services import gateway, vector_store
+    from legal_ai.services import chat_service, vector_store
 
     user_id = "11111111-1111-1111-1111-111111111111"
     token = jwt_utils.create_access_token(user_id)
@@ -76,7 +76,7 @@ def test_signed_in_renders_chat(monkeypatch):
             "firm": None,
         },
     )
-    monkeypatch.setattr(gateway, "route_query", lambda **kw: "stubbed answer")
+    monkeypatch.setattr(chat_service, "route_query", lambda **kw: "stubbed answer")
 
     at = _make_apptest()
     at.session_state["legal_ai_user_id"] = user_id

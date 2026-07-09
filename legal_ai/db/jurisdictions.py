@@ -109,7 +109,9 @@ def update_user_jurisdictions(user_id: str, jurisdiction_ids: list[str]) -> bool
         with engine.begin() as conn:
             # Delete existing preferences
             conn.execute(
-                text("DELETE FROM user_jurisdiction_preferences WHERE user_id = CAST(:user_id AS UUID)"),
+                text(
+                    "DELETE FROM user_jurisdiction_preferences WHERE user_id = CAST(:user_id AS UUID)"
+                ),
                 {"user_id": user_id},
             )
 

@@ -140,7 +140,9 @@ def get_all_documents(limit: int = 100, offset: int = 0) -> list[dict]:
     return [dict(row) for row in rows]
 
 
-def log_document_audit(document_id: str, user_id: str, action: str, details: dict | None = None) -> None:
+def log_document_audit(
+    document_id: str, user_id: str, action: str, details: dict | None = None
+) -> None:
     """Log document action to audit trail.
 
     Args:

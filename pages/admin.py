@@ -6,7 +6,7 @@ import pandas as pd
 from legal_ai.auth import auth
 from legal_ai import db
 from legal_ai.auth import rbac
-from legal_ai.services import embed
+from legal_ai.services import document_service
 
 # Initialize auth - restores session from browser storage
 auth.init_auth()
@@ -243,8 +243,11 @@ with tab4:
             file_bytes = uploaded_file.read()
             file_size_mb = len(file_bytes) / (1024 * 1024)
 
-            if file_size_mb > 50:
-                st.error(f"❌ File too large ({file_size_mb:.1f} MB). Max 50 MB allowed.")
+            if file_size_mb > document_service.MAX_UPLOAD_SIZE_MB:
+                st.error(
+                    f"❌ File too large ({file_size_mb:.1f} MB). "
+                    f"Max {document_service.MAX_UPLOAD_SIZE_MB} MB allowed."
+                )
             else:
                 # Document metadata
                 doc_name = st.text_input(
@@ -291,36 +294,29 @@ with tab4:
                 if st.button("🔍 Check for Duplicates", key="preflight_check"):
                     with st.spinner("Checking for duplicates…"):
                         try:
-                            # Extract text for hashing
-                            text = embed.extract_text_from_file(file_bytes, file_type)
-                            content_hash = embed.get_document_hash(text)
+                            preflight = document_service.preflight_check(
+                                file_bytes, file_type, doc_name
+                            )
+                            st.session_state.preflight_result = preflight
+                            duplicates = preflight["duplicates"]
 
-                            # Check for duplicates
-                            dup_result = embed.check_duplicate_document(doc_name, content_hash)
-
-                            st.session_state.preflight_result = {
-                                "hash": content_hash,
-                                "text": text,
-                                "dup_result": dup_result,
-                            }
-
-                            if dup_result["existing_exact_match"]:
+                            if duplicates["existing_exact_match"]:
                                 st.warning(
                                     f"⚠️ **Duplicate document detected!** "
                                     f"This exact document (name + content) already exists in the system. "
-                                    f"Existing: {dup_result['existing_chunks']} chunks. "
+                                    f"Existing: {duplicates['existing_chunks']} chunks. "
                                     f"Uploading will be skipped.",
                                     icon="⚠️",
                                 )
-                            elif dup_result["existing_chunks"] > 0:
+                            elif duplicates["existing_chunks"] > 0:
                                 st.info(
-                                    f"ℹ️ **Document name exists** ({dup_result['existing_chunks']} chunks), "
+                                    f"ℹ️ **Document name exists** ({duplicates['existing_chunks']} chunks), "
                                     f"but content is different. New content will be added.",
                                     icon="ℹ️",
                                 )
                             else:
                                 st.success(
-                                    f"✅ **New document** - ~{len(embed.split_text_into_sections(text, 1000))} chunks will be added.",
+                                    f"✅ **New document** - ~{preflight['estimated_chunks']} chunks will be added.",
                                     icon="✅",
                                 )
 
@@ -330,35 +326,20 @@ with tab4:
                 # Upload button (only enabled after preflight)
                 if "preflight_result" in st.session_state:
                     if st.button("📤 Upload & Embed", key="upload_button"):
-                        current_user_id = auth.get_current_user_id()
-
                         with st.spinner(
                             "Uploading and embedding document… (this may take a few minutes)"
                         ):
                             try:
-                                result = embed.ingest_custom_document(
+                                result = document_service.upload_document(
                                     file_bytes=file_bytes,
                                     document_name=doc_name,
                                     document_description=doc_description,
-                                    uploaded_by_user_id=current_user_id,
+                                    uploaded_by_user_id=auth.get_current_user_id(),
                                     file_type=file_type,
                                 )
 
                                 if result["success"]:
                                     st.success(result["message"], icon="✅")
-
-                                    # Log audit event
-                                    if result["document_id"]:
-                                        db.log_document_audit(
-                                            result["document_id"],
-                                            current_user_id,
-                                            "upload",
-                                            {
-                                                "file_type": file_type,
-                                                "chunks_added": result["chunks_added"],
-                                            },
-                                        )
-
                                     st.rerun()
                                 else:
                                     st.error(result["message"], icon="❌")
@@ -542,74 +523,26 @@ with tab4:
 
                     # Import button
                     if st.button("📥 Start Bulk Import", key="bulk_import_button"):
-                        current_user_id = auth.get_current_user_id()
                         progress_bar = st.progress(0)
                         status_container = st.container()
 
-                        imported_count = 0
-                        failed_count = 0
-
-                        for idx, row in df.iterrows():
-                            try:
-                                # Get file path
-                                file_path = row.get("file_path")
-                                if not file_path:
-                                    failed_count += 1
-                                    continue
-
-                                # Try to read file
-                                try:
-                                    with open(file_path, "rb") as f:
-                                        file_bytes = f.read()
-                                except FileNotFoundError:
-                                    status_container.warning(f"⚠️ File not found: {file_path}")
-                                    failed_count += 1
-                                    continue
-
-                                # Get metadata
-                                doc_name = row.get("document_name", "Untitled")
-                                doc_description = row.get("description", "")
-                                file_type = file_path.split(".")[-1].lower()
-
-                                # Ingest document
-                                result = embed.ingest_custom_document(
-                                    file_bytes=file_bytes,
-                                    document_name=doc_name,
-                                    document_description=doc_description,
-                                    uploaded_by_user_id=current_user_id,
-                                    file_type=file_type,
-                                )
-
-                                if result["success"]:
-                                    imported_count += 1
-                                    db.log_document_audit(
-                                        result["document_id"],
-                                        current_user_id,
-                                        "bulk_import",
-                                        {
-                                            "file_type": file_type,
-                                            "chunks_added": result["chunks_added"],
-                                        },
-                                    )
-                                else:
-                                    failed_count += 1
-
-                            except Exception as e:
-                                failed_count += 1
-
-                            # Update progress
-                            progress_bar.progress((idx + 1) / len(df))
+                        outcome = document_service.bulk_import_from_csv(
+                            df.to_dict("records"),
+                            auth.get_current_user_id(),
+                            progress_cb=progress_bar.progress,
+                            status_cb=lambda message: status_container.warning(f"⚠️ {message}"),
+                        )
 
                         # Summary
                         st.divider()
                         col1, col2 = st.columns(2)
 
                         with col1:
-                            st.success(f"✅ Successfully imported: {imported_count} documents")
+                            st.success(f"✅ Successfully imported: {outcome.imported} documents")
 
                         with col2:
-                            if failed_count > 0:
-                                st.warning(f"⚠️ Failed: {failed_count} documents")
+                            if outcome.failed > 0:
+                                st.warning(f"⚠️ Failed: {outcome.failed} documents")
 
             except Exception as e:
                 st.error(f"❌ Error processing CSV: {str(e)}")

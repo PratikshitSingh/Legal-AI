@@ -84,7 +84,9 @@ def get_user_by_email(email: str) -> dict | None:
 
 
 @with_retry
-def update_user_profile(user_id: str, full_name: str | None = None, firm: str | None = None) -> bool:
+def update_user_profile(
+    user_id: str, full_name: str | None = None, firm: str | None = None
+) -> bool:
     """Update user's own profile (full_name, firm).
 
     Args:

@@ -1,35 +1,37 @@
-import logging
-import os
-import sys
-from io import StringIO
+"""Conversational RAG agent over the EU AI Act document collection."""
 
-# Suppress transformers library output
-logging.getLogger("transformers").setLevel(logging.ERROR)
-os.environ["TRANSFORMERS_VERBOSITY"] = "error"
-
-# Suppress stderr during imports
-old_stderr = sys.stderr
-sys.stderr = StringIO()
-
-try:
-    from langchain_chroma import Chroma
-    from langchain_classic.chains import (
-        create_history_aware_retriever,
-        create_retrieval_chain,
-    )
-    from langchain_classic.chains.combine_documents import create_stuff_documents_chain
-    from langchain_community.chat_message_histories import ChatMessageHistory
-    from langchain_core.chat_history import BaseChatMessageHistory
-    from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-    from langchain_core.runnables.history import RunnableWithMessageHistory
-    from langchain_google_genai import ChatGoogleGenerativeAI
-    from langchain_community.embeddings import HuggingFaceEmbeddings
-    from tenacity import retry, stop_after_attempt, wait_exponential
-finally:
-    sys.stderr = old_stderr
+from langchain_chroma import Chroma
+from langchain_classic.chains import (
+    create_history_aware_retriever,
+    create_retrieval_chain,
+)
+from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_google_genai import ChatGoogleGenerativeAI
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from legal_ai.core import constants, settings, tracing
 from legal_ai.services import vector_store
+
+CONTEXTUALIZE_QUESTION_PROMPT = (
+    "Given a chat history and the latest user question "
+    "which might reference context in the chat history, formulate a standalone question "
+    "which can be understood without the chat history. Do NOT answer the question, "
+    "just reformulate it if needed and otherwise return it as is."
+)
+
+QA_SYSTEM_PROMPT = (
+    "You are an assistant for question-answering tasks about EU legal documents, "
+    "especially the EU Artificial Intelligence Act. "
+    "Use the following pieces of retrieved context to answer the question. "
+    "If you don't know the answer, just say that you don't know. "
+    "Use three sentences maximum and keep the answer concise.\n\n"
+    "{context}"
+)
 
 
 class LegalChat:
@@ -62,16 +64,9 @@ class LegalChat:
         )
         retriever = db.as_retriever(search_kwargs={"k": app_settings.retrieval_top_k})
 
-        contextualize_q_system_prompt = (
-            "Given a chat history and the latest user question "
-            "which might reference context in the chat history, formulate a standalone question "
-            "which can be understood without the chat history. Do NOT answer the question, "
-            "just reformulate it if needed and otherwise return it as is."
-        )
-
         contextualize_q_prompt = ChatPromptTemplate.from_messages(
             [
-                ("system", contextualize_q_system_prompt),
+                ("system", CONTEXTUALIZE_QUESTION_PROMPT),
                 MessagesPlaceholder("chat_history"),
                 ("human", "{input}"),
             ]
@@ -81,18 +76,9 @@ class LegalChat:
             llm, retriever, contextualize_q_prompt
         )
 
-        qa_system_prompt = (
-            "You are an assistant for question-answering tasks about EU legal documents, "
-            "especially the EU Artificial Intelligence Act. "
-            "Use the following pieces of retrieved context to answer the question. "
-            "If you don't know the answer, just say that you don't know. "
-            "Use three sentences maximum and keep the answer concise.\n\n"
-            "{context}"
-        )
-
         qa_prompt = ChatPromptTemplate.from_messages(
             [
-                ("system", qa_system_prompt),
+                ("system", QA_SYSTEM_PROMPT),
                 MessagesPlaceholder("chat_history"),
                 ("human", "{input}"),
             ]

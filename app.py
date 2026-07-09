@@ -30,7 +30,7 @@ from legal_ai.auth.auth import (
 )
 from legal_ai.auth import browser_storage
 from legal_ai import db
-from legal_ai.services.gateway import clear_chat_cache, route_query
+from legal_ai.services import chat_service
 
 
 CHAT_UI_KEY = "chat1"
@@ -179,7 +179,7 @@ def render_sidebar(session_id: str) -> None:
                     ST.switch_page("pages/admin.py")
 
         if ST.button("Sign out", use_container_width=True):
-            clear_chat_cache()
+            chat_service.clear_chat_cache()
             sign_out()
             ST.rerun()
 
@@ -234,7 +234,7 @@ def render_sidebar(session_id: str) -> None:
         ST.divider()
         ST.subheader("Chats")
         if ST.button("New chat", use_container_width=True):
-            clear_chat_cache()
+            chat_service.clear_chat_cache()
             start_new_chat()
             ST.rerun()
 
@@ -255,7 +255,7 @@ def render_sidebar(session_id: str) -> None:
                 type="primary" if is_active else "secondary",
             ):
                 if sid != session_id:
-                    clear_chat_cache(sid)
+                    chat_service.clear_chat_cache(sid)
                     switch_to_session(sid)
                     load_ui_messages(sid)
                     ST.rerun()
@@ -287,7 +287,7 @@ def create_chat(chat_id: str, session_id: str) -> None:
             # Get selected jurisdictions from session state
             jurisdiction_ids = ST.session_state.get(SessionKeys.SELECTED_JURISDICTIONS, [])
 
-            assistant_response = route_query(
+            assistant_response = chat_service.route_query(
                 question=prompt,
                 session_id=session_id,
                 jwt=access_token,
