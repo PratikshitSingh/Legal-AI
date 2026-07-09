@@ -1,5 +1,7 @@
 # Phase 3: UI/UX Testing Guide
 
+> **Note:** This is a manual click-through test script — none of it is automated. The automated suite lives in `tests/`.
+
 ## Overview
 Phase 3 implementation adds three major features:
 1. **Sidebar Jurisdiction Selector** - Multi-jurisdiction filtering with preference persistence
@@ -31,7 +33,7 @@ cd /Users/pratikshit/Projects/Legal-AI
 source .venv/bin/activate
 
 # Verify required environment variables are set:
-echo $DATABASE_URL          # Should be your Neon PostgreSQL connection
+echo $NEON_DB_DATABASE_URL          # Should be your Neon PostgreSQL connection
 echo $SENDGRID_API_KEY      # For email magic links
 echo $JWT_SECRET            # For token generation
 echo $GEMINI_API_KEY        # For LLM responses
@@ -450,6 +452,6 @@ Tested and verified on:
 
 Refer to:
 - Code: [app.py](app.py) - Main application
-- Code: [legal_ai/pages/compare.py](legal_ai/pages/compare.py) - Comparison page
-- Code: [legal_ai/pages/admin.py](legal_ai/pages/admin.py) - Admin dashboard
+- Code: [pages/compare.py](pages/compare.py) - Comparison page
+- Code: [pages/admin.py](pages/admin.py) - Admin dashboard
 - Docs: [README.md](README.md) - Full project documentation

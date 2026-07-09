@@ -1,16 +1,25 @@
-"""Seed jurisdictions from JSON into database."""
+"""Seed the jurisdiction hierarchy from JSON into the database.
+
+Run as: ``python -m legal_ai.scripts.seed_jurisdictions`` (migrations must
+have been applied first — the WORLD root comes from migration 005).
+"""
 
 import json
+import logging
 from pathlib import Path
-from uuid import UUID
 
-from legal_ai.db.db import get_engine
 from sqlalchemy import text
 
+from legal_ai.db import get_engine
 
-def load_jurisdictions_from_file(file_path: str = "legal_ai/data/jurisdictions_seed.json") -> dict:
+logger = logging.getLogger(__name__)
+
+DEFAULT_SEED_FILE = Path(__file__).resolve().parent.parent / "data" / "jurisdictions_seed.json"
+
+
+def load_jurisdictions_from_file(file_path: str | Path = DEFAULT_SEED_FILE) -> dict:
     """Load jurisdiction hierarchy from JSON file."""
-    with open(file_path, "r") as f:
+    with open(file_path) as f:
         return json.load(f)
 
 
@@ -45,37 +54,32 @@ def insert_jurisdiction(
     return result
 
 
-def seed_jurisdictions(file_path: str | None = None) -> None:
+def seed_jurisdictions(file_path: str | Path | None = None) -> None:
     """
     Load hierarchical jurisdictions from JSON into database.
-    
+
     Args:
-        file_path: Path to jurisdictions_seed.json (defaults to data/jurisdictions_seed.json)
+        file_path: Path to jurisdictions_seed.json (defaults to the copy
+                   shipped in legal_ai/data/)
     """
-    if file_path is None:
-        file_path = "legal_ai/data/jurisdictions_seed.json"
-    
-    # Load seed data
-    seed_data = load_jurisdictions_from_file(file_path)
-    
+    seed_data = load_jurisdictions_from_file(file_path or DEFAULT_SEED_FILE)
+
     # Get WORLD jurisdiction ID (should exist from migration 005)
     engine = get_engine()
     with engine.begin() as conn:
         world_id = conn.execute(
             text("SELECT jurisdiction_id::text FROM jurisdictions WHERE code = 'WORLD'")
         ).scalar()
-        
+
         if not world_id:
-            print("❌ WORLD jurisdiction not found. Run migrations first.")
+            logger.error("WORLD jurisdiction not found. Run migrations first.")
             return
-        
-        print(f"🌍 Root jurisdiction WORLD: {world_id}")
-        
+
+        logger.info("Root jurisdiction WORLD: %s", world_id)
+
         # Process regions
         inserted = 0
         for region in seed_data.get("regions", []):
-            print(f"\n📍 Region: {region['name']}")
-            
             # Insert region under WORLD
             region_id = insert_jurisdiction(
                 conn,
@@ -87,8 +91,8 @@ def seed_jurisdictions(file_path: str | None = None) -> None:
                 flag_emoji=region.get("flag_emoji"),
             )
             inserted += 1
-            print(f"  ✅ Inserted region: {region['name']} ({region['code']})")
-            
+            logger.info("Inserted region: %s (%s)", region["name"], region["code"])
+
             # Process countries/states in this region
             for country_or_region in region.get("countries", []):
                 # Check if it's an EU-like super-region (has countries inside)
@@ -104,11 +108,15 @@ def seed_jurisdictions(file_path: str | None = None) -> None:
                         flag_emoji=country_or_region.get("flag_emoji"),
                     )
                     inserted += 1
-                    print(f"    ✅ Inserted sub-region: {country_or_region['name']} ({country_or_region['code']})")
-                    
+                    logger.info(
+                        "Inserted sub-region: %s (%s)",
+                        country_or_region["name"],
+                        country_or_region["code"],
+                    )
+
                     # Insert countries under super-region
                     for country in country_or_region.get("countries", []):
-                        country_id = insert_jurisdiction(
+                        insert_jurisdiction(
                             conn,
                             code=country["code"],
                             name=country["name"],
@@ -118,8 +126,8 @@ def seed_jurisdictions(file_path: str | None = None) -> None:
                             flag_emoji=country.get("flag_emoji"),
                         )
                         inserted += 1
-                        print(f"      ✅ Inserted country: {country['name']} ({country['code']})")
-                
+                        logger.info("Inserted country: %s (%s)", country["name"], country["code"])
+
                 else:
                     # It's a regular country
                     country_id = insert_jurisdiction(
@@ -132,11 +140,15 @@ def seed_jurisdictions(file_path: str | None = None) -> None:
                         flag_emoji=country_or_region.get("flag_emoji"),
                     )
                     inserted += 1
-                    print(f"    ✅ Inserted country: {country_or_region['name']} ({country_or_region['code']})")
-                    
+                    logger.info(
+                        "Inserted country: %s (%s)",
+                        country_or_region["name"],
+                        country_or_region["code"],
+                    )
+
                     # Insert states (for countries like US)
                     for state in country_or_region.get("states", []):
-                        state_id = insert_jurisdiction(
+                        insert_jurisdiction(
                             conn,
                             code=state["code"],
                             name=state["name"],
@@ -145,9 +157,12 @@ def seed_jurisdictions(file_path: str | None = None) -> None:
                             region_code=region["code"],
                         )
                         inserted += 1
-        
-        print(f"\n✅ Successfully seeded {inserted} jurisdictions!")
+
+        logger.info("Successfully seeded %d jurisdictions", inserted)
 
 
 if __name__ == "__main__":
+    from legal_ai.core.logging import configure_logging
+
+    configure_logging()
     seed_jurisdictions()

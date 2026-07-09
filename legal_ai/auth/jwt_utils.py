@@ -2,12 +2,9 @@
 
 import os
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 def get_jwt_secret() -> str:
@@ -31,18 +28,18 @@ def get_refresh_token_expiry_days() -> int:
 def create_access_token(user_id: str, expires_in_seconds: int | None = None) -> str:
     """
     Create a short-lived JWT access token.
-    
+
     Args:
         user_id: UUID of the user
         expires_in_seconds: Token expiry duration (default: 15 min from config)
-    
+
     Returns:
         JWT token string
     """
     if expires_in_seconds is None:
         expires_in_seconds = get_access_token_expiry_seconds()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expires_at = now + timedelta(seconds=expires_in_seconds)
 
     payload = {
@@ -63,27 +60,27 @@ def create_refresh_token_string() -> str:
 def validate_access_token(token: str) -> str:
     """
     Validate JWT access token and extract user_id.
-    
+
     Args:
         token: JWT token string
-    
+
     Returns:
         user_id (UUID as string)
-    
+
     Raises:
         jwt.InvalidTokenError: If token is invalid, expired, or malformed
     """
     try:
         payload = jwt.decode(token, get_jwt_secret(), algorithms=["HS256"])
-        
+
         # Ensure token type is 'access'
         if payload.get("type") != "access":
             raise jwt.InvalidTokenError("Invalid token type")
-        
+
         user_id = payload.get("user_id")
         if not user_id:
             raise jwt.InvalidTokenError("Missing user_id in token")
-        
+
         return user_id
     except jwt.ExpiredSignatureError:
         raise jwt.InvalidTokenError("Token expired")
@@ -130,7 +127,7 @@ def is_access_token_expired(token: str) -> bool:
 def generate_auth_tokens(user_id: str) -> dict[str, str]:
     """
     Generate both access and refresh tokens for a user.
-    
+
     Returns:
         {
             "access_token": "<JWT>",

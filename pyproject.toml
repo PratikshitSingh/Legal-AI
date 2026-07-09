@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "legal-ai"
+version = "0.1.0"
+description = "EU AI Act RAG assistant — Streamlit app with magic-link auth, Neon Postgres, and Chroma"
+requires-python = ">=3.11"
+# Dependencies live in requirements.txt (the Streamlit Cloud deploy manifest).
+# Sourcing them dynamically keeps the two manifests from drifting apart.
+dynamic = ["dependencies"]
+
+[tool.setuptools.packages.find]
+include = ["legal_ai*"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: needs live services (Neon DB, Chroma store, HF model downloads) via local .env; excluded in CI",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "I",  # import sorting
+    "W",  # pycodestyle warnings
+    "UP", # pyupgrade
+]
+# The formatter owns code line length; E501 would only flag unbreakable
+# content inside embedded SQL/JS/HTML strings.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Entry points that must run bootstrap code (logging config / sys.path)
+# before their imports.
+"app.py" = ["E402"]
+"scripts/*.py" = ["E402"]
+"legal_ai/__init__.py" = ["E402"]
+"tests/test_auth_flow.py" = ["E402"]

@@ -1,25 +1,37 @@
 #!/usr/bin/env python3
-"""Offline ingestion: download EU AI Act PDF → chunk → embed → Chroma DB."""
+"""Offline ingestion: download EU AI Act PDF → chunk → embed → Chroma DB.
+
+Thin CLI wrapper around ``legal_ai.services.embed.run_ingest``; equivalent to
+``python -m legal_ai.services.embed [--force]``.
+"""
+
+import argparse
 import sys
 from pathlib import Path
 
-# Add project root to path
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+# Runnable as a plain file from any CWD, so the repo root must be on sys.path.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from legal_ai.services.embed import fetch_pdf_bytes, pdf_to_text
-from legal_ai.core import utils
+from legal_ai.core import tracing
+from legal_ai.core.logging import configure_logging
+from legal_ai.services.embed import run_ingest
 
 if __name__ == "__main__":
-    print("📥 Starting EU AI Act ingestion...")
-    
+    parser = argparse.ArgumentParser(
+        description="Download the EU AI Act PDF and embed it into Chroma"
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Delete the existing collection and re-ingest from scratch",
+    )
+    args = parser.parse_args()
+
+    configure_logging()
+    tracing.setup_langfuse_tracing()
     try:
-        # This is a wrapper script. The actual ingest logic is in legal_ai.services.embed
-        # Call this with: python scripts/ingest.py
-        print("✅ Ingest script ready. Use the embed module for full ingestion.")
-        print("   from legal_ai.services.embed import fetch_pdf_bytes, pdf_to_text")
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+        run_ingest(force=args.force)
+    finally:
+        # Flush traces before exit — batch processes have no server lifecycle
+        # to do it for them.
+        tracing.flush_langfuse_traces()

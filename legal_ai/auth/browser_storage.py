@@ -1,13 +1,17 @@
 """Browser cookie utilities for persistent session management."""
 
 import json
+import logging
 from urllib.parse import quote, unquote
 
 import streamlit as st
 from streamlit.components.v1 import html
 
+from legal_ai.core.constants import SessionKeys
+
 from . import jwt_utils
 
+logger = logging.getLogger(__name__)
 
 AUTH_COOKIE_NAME = "legal_ai_auth"
 
@@ -144,9 +148,15 @@ def get_auth_from_browser() -> dict | None:
     return None
 
 
-def store_auth_in_browser(user_id: str, email: str, access_token: str,
-                          refresh_token: str, role: str, full_name: str | None,
-                          firm: str | None) -> None:
+def store_auth_in_browser(
+    user_id: str,
+    email: str,
+    access_token: str,
+    refresh_token: str,
+    role: str,
+    full_name: str | None,
+    firm: str | None,
+) -> None:
     """Store auth tokens in a persistent browser cookie."""
     auth_value = _serialize_auth_data(
         user_id=user_id,
@@ -160,11 +170,6 @@ def store_auth_in_browser(user_id: str, email: str, access_token: str,
     _inject_html(_cookie_script(auth_value, _auth_cookie_max_age_seconds()))
 
 
-def restore_auth_from_browser() -> dict | None:
-    """Restore auth tokens from the browser cookie."""
-    return get_auth_from_browser()
-
-
 def clear_auth_from_browser() -> None:
     """Clear auth tokens from the browser cookie."""
     _inject_html(_clear_cookie_script())
@@ -176,15 +181,15 @@ def get_auth_from_session_or_query() -> dict | None:
     if auth_data:
         return auth_data
 
-    if st.session_state.get("legal_ai_user_id"):
+    if st.session_state.get(SessionKeys.USER_ID):
         return {
-            "user_id": st.session_state.get("legal_ai_user_id"),
-            "email": st.session_state.get("legal_ai_user_email"),
-            "access_token": st.session_state.get("legal_ai_access_token"),
-            "refresh_token": st.session_state.get("legal_ai_refresh_token"),
-            "role": st.session_state.get("legal_ai_user_role", "viewer"),
-            "full_name": st.session_state.get("legal_ai_user_full_name"),
-            "firm": st.session_state.get("legal_ai_user_firm"),
+            "user_id": st.session_state.get(SessionKeys.USER_ID),
+            "email": st.session_state.get(SessionKeys.USER_EMAIL),
+            "access_token": st.session_state.get(SessionKeys.ACCESS_TOKEN),
+            "refresh_token": st.session_state.get(SessionKeys.REFRESH_TOKEN),
+            "role": st.session_state.get(SessionKeys.USER_ROLE, "viewer"),
+            "full_name": st.session_state.get(SessionKeys.USER_FULL_NAME),
+            "firm": st.session_state.get(SessionKeys.USER_FIRM),
         }
 
     query_params = st.query_params
@@ -228,7 +233,7 @@ def restore_auth_in_session() -> bool:
     firm = auth_data.get("firm")
     email = auth_data.get("email")
     try:
-        from legal_ai.db import db
+        from legal_ai import db
 
         user = db.get_user_by_id(token_user_id)
         if user:
@@ -238,15 +243,15 @@ def restore_auth_in_session() -> bool:
             email = user.get("email")
     except Exception as exc:
         # DB unavailable: fall back to least privilege.
-        print(f"[auth] Could not load user profile during restore: {exc}")
+        logger.warning("Could not load user profile during restore: %s", exc)
 
-    st.session_state.legal_ai_user_id = token_user_id
-    st.session_state.legal_ai_user_email = email
-    st.session_state.legal_ai_access_token = access_token
-    st.session_state.legal_ai_refresh_token = auth_data.get("refresh_token")
-    st.session_state.legal_ai_user_role = role
-    st.session_state.legal_ai_user_full_name = full_name
-    st.session_state.legal_ai_user_firm = firm
+    st.session_state[SessionKeys.USER_ID] = token_user_id
+    st.session_state[SessionKeys.USER_EMAIL] = email
+    st.session_state[SessionKeys.ACCESS_TOKEN] = access_token
+    st.session_state[SessionKeys.REFRESH_TOKEN] = auth_data.get("refresh_token")
+    st.session_state[SessionKeys.USER_ROLE] = role
+    st.session_state[SessionKeys.USER_FULL_NAME] = full_name
+    st.session_state[SessionKeys.USER_FIRM] = firm
     return True
 
 

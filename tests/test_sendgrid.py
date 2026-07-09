@@ -16,6 +16,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Live-service test: sends a real email when opted in via env vars below.
+pytestmark = pytest.mark.integration
+
 
 def _send_test_email(verbose: bool = True) -> tuple[bool, str]:
     """Send a test email through SendGrid; returns (success, message)."""

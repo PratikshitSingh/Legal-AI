@@ -1,7 +1,7 @@
 import sys
 import types
 
-from legal_ai.core import utils
+from legal_ai.core import settings, tracing
 
 
 class FakeCallbackHandler:
@@ -37,26 +37,25 @@ def test_langfuse_tracing_initializes_and_returns_callbacks(monkeypatch):
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk_test")
     monkeypatch.setenv("LANGFUSE_HOST", "https://example.langfuse.local")
     monkeypatch.setattr(
-        utils,
+        settings,
         "load_config",
         lambda: {"tracing": {"enabled": True, "project_name": "legal-ai"}},
     )
 
-    utils._langfuse_callback = None
-    utils._tracing_enabled = False
+    tracing._reset_for_tests()
     FakeCallbackHandler.instances.clear()
 
-    utils.setup_langfuse_tracing()
+    tracing.setup_langfuse_tracing()
 
-    assert utils._tracing_enabled is True
-    assert utils._langfuse_callback is not None
+    assert tracing._state.enabled is True
+    assert tracing._state.callback is not None
 
-    status = utils.get_langfuse_tracing_status()
+    status = tracing.get_langfuse_tracing_status()
     assert status["enabled"] is True
     assert status["project_name"] == "legal-ai"
     assert "Langfuse tracing enabled" in status["message"]
 
-    callbacks = utils.get_langfuse_callback(
+    callbacks = tracing.get_langfuse_callback(
         trace_name="legal-rag-query",
         user_id="user-123",
         session_id="session-456",
@@ -70,5 +69,5 @@ def test_langfuse_tracing_initializes_and_returns_callbacks(monkeypatch):
     assert handler.kwargs["session_id"] == "session-456"
     assert handler.kwargs["tags"] == ["question-answering"]
 
-    utils.flush_langfuse_traces()
-    assert utils._langfuse_callback.flushed is True
+    tracing.flush_langfuse_traces()
+    assert tracing._state.callback.flushed is True

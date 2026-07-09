@@ -26,11 +26,18 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
+      - name: Lint
+        run: |
+          pip install ruff
+          ruff check .
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # CPU-only torch: avoids multi-GB CUDA wheels on CI runners
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          # CPU-only torch: avoids multi-GB CUDA wheels on CI runners. Must
+          # match the requirements.txt pin (2.12.0+cpu satisfies ==2.12.0),
+          # or the requirements install would re-pull CUDA torch from PyPI.
+          pip install "torch==2.12.0" --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements.txt
           pip install pytest
 
