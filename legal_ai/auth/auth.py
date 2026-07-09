@@ -133,7 +133,7 @@ def set_auth_tokens(
 # ============================================================================
 
 
-def request_magic_link(email: str, app_url: str = None) -> dict[str, str]:
+def request_magic_link(email: str, app_url: str | None = None) -> dict[str, str]:
     """
     Request a magic link for passwordless sign-in.
 
