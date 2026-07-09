@@ -5,7 +5,7 @@ import hashlib
 import logging
 import time
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import fitz
 import requests
@@ -242,7 +242,7 @@ def embed_text_in_chromadb(
 
     count = collection.count()
     logger.info("Collection already contains %d documents", count)
-    ids = [str(i) for i in range(count, count + len(documents))]
+    ids = [uuid4().hex for _ in documents]
 
     # Filter out duplicate chunks if requested
     if skip_duplicate_chunks and existing_chunk_ids:
