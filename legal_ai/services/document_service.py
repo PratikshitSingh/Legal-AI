@@ -142,12 +142,18 @@ def bulk_import_from_csv(
 
             if ingest["success"]:
                 result.imported += 1
-                db.log_document_audit(
-                    ingest["document_id"],
-                    uploaded_by_user_id,
-                    "bulk_import",
-                    {"file_type": file_type, "chunks_added": ingest["chunks_added"]},
-                )
+                if ingest.get("document_id"):
+                    db.log_document_audit(
+                        ingest["document_id"],
+                        uploaded_by_user_id,
+                        "bulk_import",
+                        {"file_type": file_type, "chunks_added": ingest["chunks_added"]},
+                    )
+                else:
+                    message = f"Bulk import succeeded but no document_id was recorded for {file_path}"
+                    result.warnings.append(message)
+                    if status_cb:
+                        status_cb(message)
             else:
                 result.failed += 1
 
