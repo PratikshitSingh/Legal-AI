@@ -39,9 +39,13 @@ def get_collection(*, force: bool = False):
     Args:
         force: Delete any existing collection first (full re-ingest).
     """
-    embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name=EMBEDDING_MODEL_NAME,
-    )
+    embedding_function = getattr(get_collection, "_embedding_function", None)
+    if embedding_function is None:
+        embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name=EMBEDDING_MODEL_NAME,
+        )
+        setattr(get_collection, "_embedding_function", embedding_function)
+
     client = get_chroma_client()
 
     if force:
