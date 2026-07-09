@@ -19,6 +19,7 @@ def get_jurisdiction_tree(parent_code: str | None = None) -> list[dict]:
 
     Returns:
         List of jurisdiction dicts for the requested level (not recursively nested).
+    """
     engine = get_engine()
     with engine.connect() as conn:
         if parent_code:

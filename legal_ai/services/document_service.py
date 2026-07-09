@@ -150,7 +150,9 @@ def bulk_import_from_csv(
                         {"file_type": file_type, "chunks_added": ingest["chunks_added"]},
                     )
                 else:
-                    message = f"Bulk import succeeded but no document_id was recorded for {file_path}"
+                    message = (
+                        f"Bulk import succeeded but no document_id was recorded for {file_path}"
+                    )
                     result.warnings.append(message)
                     if status_cb:
                         status_cb(message)
