@@ -18,7 +18,10 @@ torch==2.12.0
 langfuse==4.6.1
 
 # Web app
-streamlit==1.57.0
+# The streamlit pin must track the version Streamlit Cloud runs. Pinning below
+# 1.58 broke sign-in in production: st.context.cookies came back empty under
+# Cloud's iframe-embedded serving, so browser-cookie session restore failed.
+streamlit==1.59.2
 
 # Database
 SQLAlchemy==2.0.50

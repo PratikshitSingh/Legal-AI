@@ -182,6 +182,9 @@ def _create_indexes(conn) -> None:
             CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON refresh_tokens(expires_at);
             CREATE INDEX IF NOT EXISTS idx_magic_links_email ON magic_links(email);
             CREATE INDEX IF NOT EXISTS idx_magic_links_expires ON magic_links(expires_at);
+            CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+            CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+            CREATE INDEX IF NOT EXISTS idx_users_firm ON users(firm);
             CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_roles_role_name ON roles(role_name);
             CREATE INDEX IF NOT EXISTS idx_user_audit_log_user_id ON user_audit_log(user_id);
