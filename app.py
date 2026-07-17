@@ -99,20 +99,27 @@ def render_magic_link_verification(email: str, token: str) -> None:
         st.success(f"✅ Welcome, {result['email']}!")
         start_new_chat(result["user_id"])
         st.balloons()
-        # Do a client-side redirect shortly after success so the cookie write from
-        # `set_auth_tokens` has time to persist before the app loads again.
-        # (In practice the reload usually comes from the auth-sync listener
-        # reacting to the storage event; this is the backstop.)
+        # Reload into the app shortly after success so the browser-storage
+        # write from `set_auth_tokens` has time to persist first. The consumed
+        # magic-link params must be stripped BEFORE reloading, or the next run
+        # re-verifies the used token and shows a false "Invalid or expired"
+        # error. Component iframes are sandboxed: navigating the parent to a
+        # NEW URL throws SecurityError, but history.replaceState (not a
+        # navigation) followed by a same-URL reload is allowed.
         # NOTE: must use components.html — st.markdown/st.html never execute
-        # <script> tags. The component runs in an iframe, so redirect the parent.
+        # <script> tags. The component runs in an iframe, targeting the parent.
         components_html(
             """
             <script>
                 setTimeout(function() {
                     try {
-                        window.parent.location.href = window.parent.location.pathname;
+                        var root = window.parent;
+                        if (root.location.search) {
+                            root.history.replaceState(null, '', root.location.pathname);
+                        }
+                        root.location.reload();
                     } catch (e) {
-                        window.location.href = '/';
+                        console.error(e);
                     }
                 }, 400);
             </script>

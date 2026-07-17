@@ -102,6 +102,18 @@ def _cookie_script(cookie_value: str, max_age_seconds: int) -> str:
                     root.localStorage.setItem(cookieName, cookieValue);
                 }} catch (e) {{ /* ignore localStorage errors */ }}
 
+                // Strip one-time params (?token=&email=) from the URL BEFORE
+                // broadcasting: the sync listener reloads the page on the
+                // storage event, and a reload that still carries the consumed
+                // magic-link token would re-verify it and show a false
+                // "Invalid or expired" error. replaceState is not a
+                // navigation, so the component sandbox allows it.
+                try {{
+                    if (root.location.search) {{
+                        root.history.replaceState(null, '', root.location.pathname);
+                    }}
+                }} catch (e) {{ /* ignore history errors */ }}
+
                 // localStorage-based sync (triggers storage event in other tabs)
                 try {{
                     const payload = JSON.stringify({{ type: 'set', ts: Date.now() }});
