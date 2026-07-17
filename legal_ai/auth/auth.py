@@ -35,6 +35,12 @@ def init_auth() -> None:
     ):
         return
 
+    # A deliberate sign-out just happened in this tab: don't immediately
+    # restore from browser storage that may not have been cleared yet (the
+    # clear script races the rerun); the app re-runs the clear on this render.
+    if st.session_state.get(SessionKeys.SIGNED_OUT):
+        return
+
     st.session_state[SessionKeys.AUTH_INITIALIZED] = True
 
     # If session has no user, attempt to restore from browser storage (cookie)
@@ -302,6 +308,12 @@ def sign_out() -> None:
 
     # Clear from browser storage
     browser_storage.clear_auth_from_browser()
+
+    # Mark the deliberate sign-out: the caller usually reruns immediately,
+    # which can kill the injected clear-script before it delivers. The app
+    # re-runs the browser clear on the next stable render and skips the
+    # auto-restore bootstrap for this tab.
+    st.session_state[SessionKeys.SIGNED_OUT] = True
 
     # Clear query params
     st.query_params.clear()

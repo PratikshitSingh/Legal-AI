@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+  <!--
+    Bidirectional Streamlit component: reads the auth payload from the app
+    page's localStorage and returns it to Python via the component protocol.
+
+    This is the session-restore channel for hosts whose proxies do not
+    forward cookies to the server (Streamlit Community Cloud): the browser
+    still holds the payload, and unlike cookie headers or iframe-initiated
+    navigation (blocked by the component sandbox without user activation),
+    the component value channel always reaches the server.
+  -->
+  <body>
+    <script>
+      function sendMessageToStreamlitClient(type, data) {
+        const message = Object.assign({ isStreamlitMessage: true, type: type }, data);
+        window.parent.postMessage(message, "*");
+      }
+
+      window.addEventListener("message", function (event) {
+        if (!event.data || event.data.type !== "streamlit:render") return;
+        let value = "";
+        try {
+          // Component iframes are same-origin with the app page; read the
+          // payload written by browser_storage's cookie/localStorage script.
+          const root = (function () {
+            try { void window.parent.document; return window.parent; } catch (e) { return window; }
+          })();
+          value = root.localStorage.getItem("legal_ai_auth") || "";
+        } catch (e) {
+          value = "";
+        }
+        sendMessageToStreamlitClient("streamlit:setComponentValue", { value: value, dataType: "json" });
+        sendMessageToStreamlitClient("streamlit:setFrameHeight", { height: 0 });
+      });
+
+      sendMessageToStreamlitClient("streamlit:componentReady", { apiVersion: 1 });
+    </script>
+  </body>
+</html>

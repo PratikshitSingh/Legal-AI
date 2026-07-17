@@ -46,3 +46,4 @@ class SessionKeys:
     SELECTED_JURISDICTIONS = "selected_jurisdictions"
     AUTH_INITIALIZED = "_legal_ai_auth_initialized"
     LAST_VERIFIED_MAGIC_LINK = "_legal_ai_last_verified_magic_link"
+    SIGNED_OUT = "_legal_ai_signed_out"
