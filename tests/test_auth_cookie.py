@@ -183,6 +183,64 @@ def test_sign_out_clears_browser_cookie(fake_auth_state, monkeypatch):
     assert cleared.get("called") is True
     assert "legal_ai_user_id" not in session_state
     assert query_params == {}
+    # The app uses this flag to re-run the browser-side clear on the next
+    # stable render and to skip the auto-restore bootstrap for this tab.
+    assert session_state.get("_legal_ai_signed_out") is True
+
+
+def test_init_auth_restores_from_query_param_handoff(fake_auth_state, monkeypatch):
+    """The one-time query-param handoff must restore the session server-side.
+
+    This is the restore path that works on hosts whose proxies don't forward
+    cookies to the server (Streamlit Community Cloud): tokens arrive as query
+    params, the signature is verified, the profile is loaded from the DB, the
+    browser payload is re-persisted, and the tokens are cleared from the URL.
+    """
+    session_state, query_params = fake_auth_state
+    query_params.update(
+        {
+            "user_id": "user-321",
+            "email": "handoff@example.com",
+            "access_token": "handoff-access",
+            "refresh_token": "handoff-refresh",
+        }
+    )
+
+    # No cookie reaches the server (the Cloud failure mode).
+    monkeypatch.setattr(browser_storage, "get_auth_from_browser", lambda: None)
+    monkeypatch.setattr(
+        browser_storage.jwt_utils,
+        "get_user_id_from_token_signature",
+        lambda token: "user-321" if token == "handoff-access" else None,
+    )
+    from legal_ai import db as db_module
+
+    monkeypatch.setattr(
+        db_module,
+        "get_user_by_id",
+        lambda user_id: {
+            "user_id": user_id,
+            "email": "handoff@example.com",
+            "role": "editor",
+            "full_name": None,
+            "firm": None,
+        },
+    )
+    stored = {}
+    monkeypatch.setattr(
+        auth.browser_storage,
+        "store_auth_in_browser",
+        lambda *args, **kwargs: stored.update({"called": True}),
+    )
+
+    auth.init_auth()
+
+    assert session_state["legal_ai_user_id"] == "user-321"
+    assert session_state["legal_ai_user_role"] == "editor"
+    # The handoff re-persists the browser payload and strips the tokens
+    # from the URL.
+    assert stored.get("called") is True
+    assert query_params == {}
 
 
 def test_magic_link_success_clears_query_params(monkeypatch):

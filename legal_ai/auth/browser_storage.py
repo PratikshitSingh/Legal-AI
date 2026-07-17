@@ -1,10 +1,21 @@
-"""Browser cookie utilities for persistent session management."""
+"""Browser-side session persistence: cookie + localStorage, and their restore.
+
+The auth payload is persisted in two places by the same injected script:
+a cookie (readable server-side via ``st.context.cookies`` on hosts that
+forward it) and localStorage. localStorage is the restore path for hosts
+whose proxies strip cookies from requests to the server (Streamlit
+Community Cloud) — it is read back through a tiny bidirectional custom
+component, since sandboxed component iframes cannot navigate the page and
+cookie headers never arrive.
+"""
 
 import json
 import logging
+from pathlib import Path
 from urllib.parse import quote, unquote
 
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit.components.v1 import html
 
 from legal_ai.core.constants import SessionKeys
@@ -14,6 +25,14 @@ from . import jwt_utils
 logger = logging.getLogger(__name__)
 
 AUTH_COOKIE_NAME = "legal_ai_auth"
+
+# Bidirectional component that returns the localStorage auth payload to
+# Python. Declared once at import; rendering it (in restore) costs nothing
+# visible (height 0).
+_read_browser_auth = components.declare_component(
+    "legal_ai_browser_auth",
+    path=str(Path(__file__).parent / "_browser_auth_component"),
+)
 
 
 def _inject_html(script: str) -> None:
@@ -76,6 +95,13 @@ def _cookie_script(cookie_value: str, max_age_seconds: int) -> str:
                 const cookieValue = decodeURIComponent("{encoded_value}");
                 root.document.cookie = cookieName + '=' + encodeURIComponent(cookieValue) + '; Path=/; Max-Age={max_age_seconds}; SameSite=Lax' + (root.location.protocol === 'https:' ? '; Secure' : '');
 
+                // Also persist in localStorage: hosts whose proxies do not
+                // forward cookies to the server (Streamlit Community Cloud)
+                // restore sessions from it via the reader component.
+                try {{
+                    root.localStorage.setItem(cookieName, cookieValue);
+                }} catch (e) {{ /* ignore localStorage errors */ }}
+
                 // localStorage-based sync (triggers storage event in other tabs)
                 try {{
                     const payload = JSON.stringify({{ type: 'set', ts: Date.now() }});
@@ -105,6 +131,10 @@ def _clear_cookie_script() -> str:
                 }})();
                 const cookieName = "{AUTH_COOKIE_NAME}";
                 root.document.cookie = cookieName + '=; Path=/; Max-Age=0; SameSite=Lax' + (root.location.protocol === 'https:' ? '; Secure' : '');
+
+                try {{
+                    root.localStorage.removeItem(cookieName);
+                }} catch (e) {{ /* ignore localStorage errors */ }}
 
                 try {{
                     const payload = JSON.stringify({{ type: 'clear', ts: Date.now() }});
@@ -148,6 +178,32 @@ def get_auth_from_browser() -> dict | None:
     return None
 
 
+def get_auth_from_local_storage() -> dict | None:
+    """Read the auth payload from localStorage via the component channel.
+
+    Renders the (invisible) reader component. On the component's first
+    appearance in a session this returns None and the value arrives on the
+    rerun Streamlit triggers automatically — callers simply see the restore
+    succeed one run later.
+    """
+    try:
+        raw = _read_browser_auth(default=None, key="_legal_ai_browser_auth_reader")
+    except Exception:
+        # No script run context (unit tests) or component machinery
+        # unavailable — behave as "nothing stored".
+        return None
+
+    if not raw:
+        return None
+
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+    return data if isinstance(data, dict) else None
+
+
 def store_auth_in_browser(
     user_id: str,
     email: str,
@@ -176,7 +232,7 @@ def clear_auth_from_browser() -> None:
 
 
 def get_auth_from_session_or_query() -> dict | None:
-    """Get auth from browser cookie, session state, or query parameters."""
+    """Get auth from cookie, session state, query params, or localStorage."""
     auth_data = get_auth_from_browser()
     if auth_data:
         return auth_data
@@ -204,7 +260,10 @@ def get_auth_from_session_or_query() -> dict | None:
             "firm": query_params.get("firm"),
         }
 
-    return None
+    # Last resort: the localStorage payload, delivered via the component
+    # channel — the only restore path that works when the host's proxy
+    # strips cookies (Streamlit Community Cloud).
+    return get_auth_from_local_storage()
 
 
 def restore_auth_in_session() -> bool:

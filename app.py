@@ -101,6 +101,8 @@ def render_magic_link_verification(email: str, token: str) -> None:
         st.balloons()
         # Do a client-side redirect shortly after success so the cookie write from
         # `set_auth_tokens` has time to persist before the app loads again.
+        # (In practice the reload usually comes from the auth-sync listener
+        # reacting to the storage event; this is the backstop.)
         # NOTE: must use components.html — st.markdown/st.html never execute
         # <script> tags. The component runs in an iframe, so redirect the parent.
         components_html(
@@ -345,6 +347,11 @@ if __name__ == "__main__":
     # Check if user is signed in
     # ========================================================================
     if not is_signed_in():
+        if st.session_state.pop(SessionKeys.SIGNED_OUT, False):
+            # The clear injected during the sign-out run can be killed by its
+            # immediate rerun; re-run it on this stable render so the browser
+            # cookie/localStorage payload is really gone.
+            browser_storage.clear_auth_from_browser()
         render_sign_in()
         st.stop()
 
