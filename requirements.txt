@@ -21,7 +21,7 @@ langfuse==4.6.1
 # The streamlit pin must track the version Streamlit Cloud runs. Pinning below
 # 1.58 broke sign-in in production: st.context.cookies came back empty under
 # Cloud's iframe-embedded serving, so browser-cookie session restore failed.
-streamlit==1.59.2
+streamlit==1.59.2  # rebuild-trigger: manifest change forces full Cloud env rebuild
 
 # Database
 SQLAlchemy==2.0.50

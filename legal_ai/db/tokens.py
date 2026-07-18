@@ -29,13 +29,27 @@ def create_magic_link(email: str, token: str, expires_in_minutes: int = 15) -> N
         )
 
 
+# A just-used magic link stays valid for this long. Browsers and hosting
+# proxies (Streamlit Cloud reconnects, email-client prefetchers) routinely
+# run the verification URL more than once; without a grace window the
+# duplicate run consumes the token's result and the real user sees a false
+# "Invalid or expired" error. The token still expires and still cannot be
+# replayed outside this short window.
+MAGIC_LINK_REUSE_GRACE_SECONDS = 60
+
+
 @with_retry
 def validate_magic_link(email: str, token: str) -> bool:
-    """Validate magic link token; marks as used if valid."""
+    """Validate magic link token; marks as used on first validation.
+
+    Idempotent within MAGIC_LINK_REUSE_GRACE_SECONDS of first use so
+    duplicate verification runs (proxy reconnects, prefetchers, double
+    loads) succeed instead of erroring after the first run consumed it.
+    """
     token_hash = hash_token(token)
     engine = get_engine()
     with engine.begin() as conn:
-        # Check if token exists, not expired, and not already used
+        # Token must exist, be unexpired, and be unused or only just used.
         result = conn.execute(
             text(
                 """
@@ -43,22 +57,30 @@ def validate_magic_link(email: str, token: str) -> bool:
                 WHERE email = :email
                   AND token_hash = :token_hash
                   AND expires_at > NOW()
-                  AND used_at IS NULL
+                  AND (
+                    used_at IS NULL
+                    OR used_at > NOW() - make_interval(secs => :grace_seconds)
+                  )
                 """
             ),
-            {"email": email, "token_hash": token_hash},
+            {
+                "email": email,
+                "token_hash": token_hash,
+                "grace_seconds": MAGIC_LINK_REUSE_GRACE_SECONDS,
+            },
         ).scalar()
 
         if not result:
             return False
 
-        # Mark as used
+        # Mark as used on first validation only — re-validation within the
+        # grace window must not extend the window.
         conn.execute(
             text(
                 """
                 UPDATE magic_links
                 SET used_at = NOW()
-                WHERE email = :email AND token_hash = :token_hash
+                WHERE email = :email AND token_hash = :token_hash AND used_at IS NULL
                 """
             ),
             {"email": email, "token_hash": token_hash},

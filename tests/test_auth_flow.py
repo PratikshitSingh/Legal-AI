@@ -189,10 +189,33 @@ def test_magic_link_flow(email: str):
         assert is_valid, "Magic link validation failed"
         print("  ✓ Magic link validated successfully")
 
-        # Try to validate again (should fail - already used)
+        # Immediate re-validation succeeds (duplicate-run grace window for
+        # proxy reconnects / prefetchers re-running the verification URL)
         is_valid = db.validate_magic_link(email, magic_token)
-        assert not is_valid, "Used magic link should be invalid"
-        print("  ✓ Used magic link correctly rejected")
+        assert is_valid, "Re-validation within the grace window should succeed"
+        print("  ✓ Duplicate validation within grace window accepted")
+
+        # Outside the grace window the used token is rejected: backdate used_at
+        from sqlalchemy import text as _text
+
+        from legal_ai.db._engine import hash_token as _hash_token
+        from legal_ai.db.tokens import MAGIC_LINK_REUSE_GRACE_SECONDS
+
+        with db.get_engine().begin() as conn:
+            conn.execute(
+                _text(
+                    "UPDATE magic_links SET used_at = NOW() - make_interval(secs => :backdate)"
+                    " WHERE email = :email AND token_hash = :token_hash"
+                ),
+                {
+                    "backdate": MAGIC_LINK_REUSE_GRACE_SECONDS + 30,
+                    "email": email,
+                    "token_hash": _hash_token(magic_token),
+                },
+            )
+        is_valid = db.validate_magic_link(email, magic_token)
+        assert not is_valid, "Used magic link should be invalid after the grace window"
+        print("  ✓ Used magic link correctly rejected after grace window")
 
         return True
     except Exception as e:
