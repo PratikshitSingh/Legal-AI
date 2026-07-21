@@ -204,8 +204,8 @@ def render_sidebar(session_id: str) -> None:
                 else []
             )
 
-            # Get jurisdiction tree for selector
-            jurisdictions = db.get_jurisdiction_tree()
+            # Get all jurisdictions for selector
+            jurisdictions = db.get_all_jurisdictions()
 
             # Create jurisdiction options
             jurisdiction_options = {j["name"]: j["jurisdiction_id"] for j in jurisdictions}

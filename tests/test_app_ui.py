@@ -63,7 +63,7 @@ def test_signed_in_renders_chat(monkeypatch):
     monkeypatch.setattr(db, "upsert_session", lambda *a, **k: None)
     monkeypatch.setattr(db, "get_session_messages", lambda sid: [])
     monkeypatch.setattr(db, "get_user_sessions", lambda uid, limit=50: [])
-    monkeypatch.setattr(db, "get_jurisdiction_tree", lambda parent_code=None: [])
+    monkeypatch.setattr(db, "get_all_jurisdictions", lambda: [])
     monkeypatch.setattr(db, "get_user_jurisdictions", lambda uid: [])
     monkeypatch.setattr(
         db,

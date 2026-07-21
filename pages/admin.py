@@ -261,7 +261,7 @@ with tab4:
 
                 # NEW: Jurisdiction selector
                 try:
-                    jurisdictions = db.get_jurisdiction_tree()
+                    jurisdictions = db.get_all_jurisdictions()
                     jurisdiction_options = {j["name"]: j["jurisdiction_id"] for j in jurisdictions}
 
                     selected_jurisdiction = st.selectbox(
@@ -358,7 +358,7 @@ with tab4:
         with col1:
             # Jurisdiction filter
             try:
-                jurisdictions = db.get_jurisdiction_tree()
+                jurisdictions = db.get_all_jurisdictions()
                 jurisdiction_filter = st.multiselect(
                     "Filter by Jurisdiction",
                     options=[j["name"] for j in jurisdictions],
@@ -405,7 +405,7 @@ with tab4:
                 # Apply filters
                 if jurisdiction_filter:
                     # Create jurisdiction ID to name map
-                    jurisdictions = db.get_jurisdiction_tree()
+                    jurisdictions = db.get_all_jurisdictions()
                     jurisdiction_name_to_id = {
                         j["name"]: j["jurisdiction_id"] for j in jurisdictions
                     }

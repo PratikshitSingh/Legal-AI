@@ -21,8 +21,15 @@ st.title("⚖️ Compare Jurisdictions")
 st.caption("Search for regulations side-by-side across different jurisdictions")
 
 # Get all jurisdictions
-jurisdictions = db.get_jurisdiction_tree()
+jurisdictions = db.get_all_jurisdictions()
 jurisdiction_map = {j["name"]: j["jurisdiction_id"] for j in jurisdictions}
+
+if len(jurisdiction_map) < 2:
+    st.info(
+        "At least two jurisdictions are required to compare. "
+        "Ask an admin to seed the jurisdiction data."
+    )
+    st.stop()
 
 col1, col2 = st.columns(2)
 

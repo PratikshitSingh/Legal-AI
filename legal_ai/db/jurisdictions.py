@@ -58,6 +58,42 @@ def get_jurisdiction_tree(parent_code: str | None = None) -> list[dict]:
 
 
 @with_retry
+def get_all_jurisdictions() -> list[dict]:
+    """Get every active jurisdiction as a flat list for selector UIs.
+
+    Unlike get_jurisdiction_tree, which returns a single hierarchy level,
+    this returns all levels (world, regions, countries, states) at once.
+
+    Returns:
+        List of jurisdiction dicts ordered by name.
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        rows = (
+            conn.execute(
+                text(
+                    """
+                    SELECT
+                        jurisdiction_id::text,
+                        code,
+                        name,
+                        level,
+                        flag_emoji,
+                        region_code
+                    FROM jurisdictions
+                    WHERE is_active = true
+                    ORDER BY name
+                    """
+                )
+            )
+            .mappings()
+            .all()
+        )
+
+    return [dict(row) for row in rows]
+
+
+@with_retry
 def get_user_jurisdictions(user_id: str) -> list[dict]:
     """Get list of jurisdictions selected by user for default filtering.
 
