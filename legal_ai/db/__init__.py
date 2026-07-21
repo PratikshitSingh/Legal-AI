@@ -14,6 +14,7 @@ from .documents import (
     log_document_audit,
 )
 from .jurisdictions import (
+    get_all_jurisdictions,
     get_jurisdiction_tree,
     get_user_jurisdictions,
     update_user_jurisdictions,
@@ -88,6 +89,7 @@ __all__ = [
     "get_all_documents",
     "log_document_audit",
     # jurisdictions
+    "get_all_jurisdictions",
     "get_jurisdiction_tree",
     "get_user_jurisdictions",
     "update_user_jurisdictions",
